@@ -126,6 +126,7 @@
         <div class="field" style="margin-bottom:8px">
           <label>정렬</label>
           <select id="sort-by">
+            <option value="ranking">랭킹순 (1위→)</option>
             <option value="total_dl_cnt">총 다운로드</option>
             <option value="made_design_cnt">제작 수</option>
             <option value="usage_span_days">사용기간</option>
@@ -181,6 +182,7 @@
       <h3>유저 정보</h3>
       <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
       <div class="info-row"><span>그룹</span><b id="i-group">–</b></div>
+      <div class="info-row"><span>순위(Ranking)</span><b id="i-ranking">–</b></div>
       <div class="info-row"><span>총 다운로드</span><b id="i-totaldl">–</b></div>
       <div class="info-row"><span>제작 디자인 수</span><b id="i-made">–</b></div>
       <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
@@ -266,6 +268,7 @@ function buildUserIndex() {
     const key = row._group + '|' + row.account_id;
     if (!STATE.users.has(key)) STATE.users.set(key, {
       key, account_id: row.account_id, group: row._group,
+      ranking: row.Ranking !== undefined && row.Ranking !== '' ? (+row.Ranking || null) : null,
       total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
       usage_span_days: row.usage_span_days !== undefined && row.usage_span_days !== '' ? (+row.usage_span_days || 0) : null,
       dl_day_cnt: +row.dl_day_cnt || 0, indices: [],
@@ -287,7 +290,10 @@ function buildUserList() {
   STATE.sortedUsers = [...STATE.users.values()]
     .filter(u => u.group === STATE.currentGroup)
     .filter(u => !q || u.account_id.includes(q))
-    .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+    .sort((a, b) => sortBy === 'ranking'
+      ? (a.ranking ?? Infinity) - (b.ranking ?? Infinity)   // 순위는 오름차순(1위 먼저), 없으면 뒤로
+      : (b[sortBy] || 0) - (a[sortBy] || 0));
+  const SORT_LABEL = { ranking: '순위', total_dl_cnt: '총DL', made_design_cnt: '제작', usage_span_days: '사용기간', dl_day_cnt: 'DL일수' };
 
   const cnt = memoCountByDesign();
   const wrap = $('user-list');
@@ -295,14 +301,16 @@ function buildUserList() {
   const frag = document.createDocumentFragment();
   STATE.sortedUsers.forEach(u => {
     const memoTotal = u.indices.reduce((s, i) => s + (cnt[STATE.rows[i].design_idx] || 0), 0);
-    const val = u[sortBy] === null ? '–' : (u[sortBy] || 0).toLocaleString();
+    let val;
+    if (sortBy === 'ranking') val = u.ranking == null ? '–' : u.ranking + '위';
+    else val = u[sortBy] == null ? '–' : (u[sortBy] || 0).toLocaleString();
     const row = document.createElement('div');
     row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '') + (memoTotal ? ' has-memo' : '');
     row.innerHTML = `
       <span class="u-caret">▶</span>
       <div class="u-main">
         <div class="u-id">${u.account_id}</div>
-        <div class="u-sub">${sortBy}=${val} · 디자인 ${u.indices.length}</div>
+        <div class="u-sub">${SORT_LABEL[sortBy]} ${val} · 디자인 ${u.indices.length}</div>
       </div>
       <div class="u-badges">
         ${memoTotal ? `<span class="badge memo">✎${memoTotal}</span>` : ''}
@@ -392,6 +400,7 @@ function render() {
 
   $('i-account').textContent = row.account_id;
   $('i-group').textContent = GROUP_LABEL[u.group];
+  $('i-ranking').textContent = u.ranking == null ? '–' : u.ranking + '위';
   $('i-totaldl').textContent = u.total_dl_cnt.toLocaleString();
   $('i-made').textContent = u.made_design_cnt.toLocaleString();
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
