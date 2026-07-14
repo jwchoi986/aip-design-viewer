@@ -19,6 +19,37 @@
   .spinner { width: 38px; height: 38px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ===== 시작(랜딩) 화면 ===== */
+  #start { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 32px 16px; }
+  .start-card { width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 30px 28px; }
+  .start-card h1 { font-size: 22px; margin: 0 0 4px; }
+  .start-desc { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .start-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
+  .start-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 14px; margin-bottom: 4px; }
+  .start-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .start-hint { font-size: 11px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; }
+  .dataset-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .dataset-btn { text-align: left; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 11px; background: #fff; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+  .dataset-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .dataset-btn.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .dataset-btn b { font-size: 14px; }
+  .dataset-btn span { font-size: 12px; color: var(--muted); }
+  .custom-file { margin-bottom: 16px; }
+  .custom-file summary { font-size: 13px; color: var(--accent); cursor: pointer; padding: 6px 0; }
+  .custom-body { padding: 8px 2px 0; }
+  .custom-body .field { margin-bottom: 10px; }
+  .custom-body label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .custom-body input[type=file] { font-size: 12px; }
+  .enter-btn { width: 100%; padding: 13px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .enter-btn:hover { filter: brightness(1.05); }
+  .enter-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .start-msg { text-align: center; font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 18px; }
+
+  .head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .head-row h1 { margin: 0; }
+  .link-btn { border: 1px solid var(--border); background: #fff; color: var(--muted); font-size: 11px; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .link-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
   /* ===== Left: master list ===== */
   aside { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
   .aside-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--border); }
@@ -121,11 +152,44 @@
   <div id="loading-text">디자인 데이터 불러오는 중…</div>
 </div>
 
+<!-- ===== 시작(랜딩) 화면 ===== -->
+<div id="start">
+  <div class="start-card">
+    <h1>Aip 유저 디자인 뷰어</h1>
+    <p class="start-desc">평가를 시작하기 전에 아래를 설정하세요.</p>
+
+    <label class="start-label">내 이름 (메모 작성자)</label>
+    <input id="start-name" class="start-input" placeholder="예: jwchoi" />
+
+    <label class="start-label">구글시트 연동 URL (실시간 공유)</label>
+    <input id="start-gsurl" class="start-input" placeholder="Apps Script Web App URL" />
+    <div class="start-hint">기본값이 입력돼 있습니다. 팀 공유를 안 하려면 비워도 됩니다.</div>
+
+    <label class="start-label" style="margin-top:18px">평가할 데이터셋 선택</label>
+    <div class="dataset-btns" id="dataset-btns"></div>
+
+    <details class="custom-file">
+      <summary>다른 CSV 파일 직접 올리기 (아직 등록 안 된 월 등)</summary>
+      <div class="custom-body">
+        <div class="field"><label>잘 쓰는 유저 CSV (.csv 또는 .csv.gz)</label><input type="file" id="file-good" accept=".csv,.gz,.tsv" /></div>
+        <div class="field"><label>못 쓰는 유저 CSV (선택)</label><input type="file" id="file-bad" accept=".csv,.gz,.tsv" /></div>
+        <div class="start-hint">파일을 올리면 위 데이터셋 버튼 대신 올린 파일로 열립니다. (이 파일은 내 브라우저에서만 열리며 팀 공유 배포와는 별개입니다.)</div>
+      </div>
+    </details>
+
+    <button id="enter-btn" class="enter-btn">뷰어 열기 →</button>
+    <div class="start-msg" id="start-msg"></div>
+  </div>
+</div>
+
 <div id="app">
   <!-- ===== Left: master list ===== -->
   <aside>
     <div class="aside-head">
-      <h1>Aip 유저 디자인 뷰어</h1>
+      <div class="head-row">
+        <h1>Aip 유저 디자인 뷰어</h1>
+        <button id="change-dataset" class="link-btn" title="데이터셋/설정 다시 선택">⟳ 데이터셋</button>
+      </div>
       <div class="field">
         <label>내 이름 (메모 작성자)</label>
         <input id="researcher" placeholder="예: jwchoi" />
@@ -231,31 +295,50 @@ const DEFAULT_GS_URL = 'https://script.google.com/a/macros/miridih.com/s/AKfycbz
 const $ = id => document.getElementById(id);
 
 // ---------- 데이터 로딩 ----------
-async function loadData() {
-  $('loading-text').textContent = '잘 쓰는 유저 데이터 불러오는 중…';
-  const good = await fetchCsv('data/designs.csv.gz');
+function resetData() {
+  STATE.rows = []; STATE.users = new Map(); STATE.workingList = [];
+  STATE.cursor = -1; STATE.page = 0; STATE.openUser = null;
+}
+// 등록된 데이터셋(경로)로 로딩
+async function loadDatasetFromPaths(goodPath, badPath) {
+  resetData();
+  $('start-msg').textContent = '잘 쓰는 유저 데이터 불러오는 중…';
+  const good = await fetchCsvFromPath(goodPath);
   good.forEach(r => r._group = 'good');
-  $('loading-text').textContent = '못 쓰는 유저 데이터 불러오는 중…';
   let bad = [];
-  try { bad = await fetchCsv('data/bad.csv.gz'); bad.forEach(r => r._group = 'bad'); }
-  catch (e) { console.warn('bad.csv.gz 로딩 실패 — 잘 쓰는 유저만 표시합니다.', e); }
+  if (badPath) {
+    $('start-msg').textContent = '못 쓰는 유저 데이터 불러오는 중…';
+    try { bad = await fetchCsvFromPath(badPath); bad.forEach(r => r._group = 'bad'); }
+    catch (e) { console.warn('못 쓰는 유저 파일 로딩 실패 — 잘 쓰는 유저만 표시', e); }
+  }
   STATE.rows = good.concat(bad);
   buildUserIndex();
 }
-async function fetchCsv(path) {
+// 유저가 직접 올린 파일로 로딩
+async function loadDatasetFromFiles(goodFile, badFile) {
+  resetData();
+  let good = [], bad = [];
+  if (goodFile) { good = parseCSV(await fileToText(goodFile)); good.forEach(r => r._group = 'good'); }
+  if (badFile) { bad = parseCSV(await fileToText(badFile)); bad.forEach(r => r._group = 'bad'); }
+  STATE.rows = good.concat(bad);
+  buildUserIndex();
+}
+async function fetchCsvFromPath(path) {
   const res = await fetch(path);
   if (!res.ok) throw new Error(path + ' 없음');
-  const buf = new Uint8Array(await res.arrayBuffer());
+  return parseCSV(await bufToText(new Uint8Array(await res.arrayBuffer())));
+}
+async function fileToText(file) {
+  return bufToText(new Uint8Array(await file.arrayBuffer()));
+}
+async function bufToText(buf) {
   const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;   // gzip 매직넘버 확인
-  let text;
   if (isGzip && typeof DecompressionStream !== 'undefined') {
     const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
-    text = await new Response(ds).text();
-  } else {
-    // CDN(Vercel 등)이 이미 압축을 풀어 전달했거나 브라우저 미지원 → 그대로 텍스트로 처리
-    text = new TextDecoder('utf-8').decode(buf);
+    return await new Response(ds).text();
   }
-  return parseCSV(text);
+  // 평문이거나 CDN이 이미 압축 해제한 경우
+  return new TextDecoder('utf-8').decode(buf);
 }
 function parseCSV(text) {
   const rows = []; let field = '', record = [], q = false;
@@ -527,23 +610,83 @@ function exportCSV() {
   a.download = 'research_notes.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 
-// ---------- 초기화 ----------
-async function init() {
-  try { await loadData(); } catch (e) { $('loading-text').textContent = '⚠ ' + e.message; return; }
-  // 그룹별 유저 수 탭 라벨에 표시
+// ---------- 데이터셋 레지스트리 ----------
+// 나중에 7·8·9월 파일이 생기면 아래 배열에 항목만 추가하면 시작 화면 버튼이 늘어납니다.
+const DATASETS = [
+  { id: '2026-h1', label: '2026 상반기', sub: '1~6월 생성자 · 잘쓰는+못쓰는', good: 'data/designs.csv.gz', bad: 'data/bad.csv.gz' },
+];
+let selectedDataset = DATASETS[0].id;
+let useCustomFiles = false;
+
+function buildDatasetButtons() {
+  const box = $('dataset-btns');
+  box.innerHTML = '';
+  DATASETS.forEach(d => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dataset-btn' + (!useCustomFiles && d.id === selectedDataset ? ' active' : '');
+    b.innerHTML = `<b>${d.label}</b><span>${d.sub}</span>`;
+    b.onclick = () => { selectedDataset = d.id; useCustomFiles = false; $('file-good').value = ''; $('file-bad').value = ''; buildDatasetButtons(); };
+    box.appendChild(b);
+  });
+}
+
+// ---------- 시작 화면 → 뷰어 진입 ----------
+async function enterViewer() {
+  const name = $('start-name').value.trim();
+  const gs = $('start-gsurl').value.trim();
+  $('enter-btn').disabled = true;
+  $('start-msg').textContent = '데이터 불러오는 중…';
+  try {
+    if (useCustomFiles) {
+      const gf = $('file-good').files[0], bf = $('file-bad').files[0];
+      if (!gf && !bf) throw new Error('올린 파일이 없습니다. 데이터셋 버튼을 선택하거나 파일을 올려주세요.');
+      await loadDatasetFromFiles(gf, bf);
+    } else {
+      const d = DATASETS.find(x => x.id === selectedDataset);
+      await loadDatasetFromPaths(d.good, d.bad);
+    }
+  } catch (e) {
+    $('start-msg').textContent = '⚠ ' + e.message;
+    $('enter-btn').disabled = false;
+    return;
+  }
+  // 사이드바 입력에 반영 + 저장
+  $('researcher').value = name; localStorage.setItem('aip_researcher', name);
+  STATE.gsUrl = gs; $('gs-url').value = gs; localStorage.setItem('aip_gs_url', gs);
+
+  // 그룹별 유저 수 탭 라벨
   let goodN = 0, badN = 0;
   STATE.users.forEach(u => { if (u.group === 'good') goodN++; else badN++; });
   $('tab-good').textContent = `잘 쓰는 유저 (${goodN.toLocaleString()})`;
   $('tab-bad').textContent = `못 쓰는 유저 (${badN.toLocaleString()})`;
-  STATE.gsUrl = localStorage.getItem('aip_gs_url') || DEFAULT_GS_URL;
-  $('gs-url').value = STATE.gsUrl;
+  STATE.currentGroup = goodN ? 'good' : 'bad';
+  document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t.dataset.group === STATE.currentGroup));
   if (!STATE.gsUrl) { try { STATE.allNotes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; } catch (e) { STATE.allNotes = []; } }
 
   buildUserList();
-  $('loading').style.display = 'none';
+  $('start').style.display = 'none';
   $('app').style.display = 'grid';
+  $('enter-btn').disabled = false;
   updateLiveLabel();
+  if (STATE.gsUrl) pollNotes();
+}
 
+// ---------- 초기화 ----------
+function init() {
+  // 시작 화면 세팅
+  buildDatasetButtons();
+  $('start-name').value = localStorage.getItem('aip_researcher') || '';
+  $('start-gsurl').value = localStorage.getItem('aip_gs_url') || DEFAULT_GS_URL;
+  $('enter-btn').onclick = enterViewer;
+  $('start-name').addEventListener('keydown', e => { if (e.key === 'Enter') enterViewer(); });
+  const onFilePick = () => { const has = $('file-good').files[0] || $('file-bad').files[0]; useCustomFiles = !!has; buildDatasetButtons(); };
+  $('file-good').onchange = onFilePick;
+  $('file-bad').onchange = onFilePick;
+  $('loading').style.display = 'none';
+  $('start').style.display = 'flex';
+
+  // 뷰어 이벤트 (요소는 처음부터 DOM에 존재, 진입 전엔 숨김 상태)
   $('sort-by').onchange = buildUserList;
   $('search').oninput = buildUserList;
   document.querySelectorAll('.group-tab').forEach(tab => tab.onclick = () => {
@@ -559,19 +702,19 @@ async function init() {
   $('page-next').onclick = () => goPage(1);
   $('save-memo').onclick = saveMemo;
   $('export-csv').onclick = exportCSV;
-  $('researcher').oninput = () => { render(); refreshFeed(); };
+  $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
+  $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
   $('gs-url').oninput = e => { STATE.gsUrl = e.target.value.trim(); localStorage.setItem('aip_gs_url', STATE.gsUrl); updateLiveLabel(); if (STATE.gsUrl) pollNotes(); };
 
   document.addEventListener('keydown', e => {
+    if ($('app').style.display === 'none') return;   // 시작 화면에선 단축키 비활성
     if (e.target.tagName === 'TEXTAREA') { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(); } return; }
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowLeft') goDesign(-1);
     if (e.key === 'ArrowRight') goDesign(1);
   });
 
-  // 실시간 폴링 (6초)
-  if (STATE.gsUrl) pollNotes();
-  setInterval(pollNotes, 6000);
+  setInterval(pollNotes, 6000);   // 실시간 폴링 (뷰어 진입 후 gsUrl 있을 때만 동작)
 }
 init();
 </script>
