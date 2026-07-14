@@ -99,13 +99,13 @@
   .crumb { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   .crumb b { color: var(--text); }
   .design-title { font-size: 17px; font-weight: 700; margin: 0 0 10px; }
-  .stage-wrap { flex: 1; position: relative; display: flex; min-height: 0; }
-  .stage { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; box-shadow: var(--shadow); }
+  /* 페이지 화살표는 이미지 양옆 별도 거터에 배치(오버레이 아님) → 이미지와 겹치거나 잘리지 않음 */
+  .stage-wrap { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 0; }
+  .stage { flex: 1; min-width: 0; align-self: stretch; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--shadow); }
   .stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .stage .empty { color: var(--muted); font-size: 13px; }
-  /* 페이지 화살표는 stage 바깥(stage-wrap 기준)에 위치 → overflow:hidden 에 잘리지 않음 */
-  .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,.92); cursor: pointer; font-size: 20px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); z-index: 5; }
-  .nav-btn:hover { background: #fff; } .nav-btn.left { left: 14px; } .nav-btn.right { right: 14px; }
+  .nav-btn { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 22px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+  .nav-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .page-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; } .dot.active { background: var(--accent); }
   .page-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
@@ -209,11 +209,6 @@
           <input id="search" placeholder="account_id" />
         </div>
       </div>
-      <div class="field" style="margin-bottom:6px">
-        <label>구글시트 연동 (실시간 공유)</label>
-        <input id="gs-url" placeholder="Apps Script Web App URL" />
-        <div class="hint" id="gs-hint">비우면 메모는 이 브라우저에만 저장 · URL 입력 시 팀원과 실시간 공유</div>
-      </div>
     </div>
     <div class="group-tabs">
       <button class="group-tab active" data-group="good" id="tab-good">잘 쓰는 유저</button>
@@ -228,12 +223,12 @@
     <h2 class="design-title" id="d-title">–</h2>
 
     <div class="stage-wrap">
-      <button class="nav-btn left" id="page-prev" title="이전 페이지">‹</button>
+      <button class="nav-btn" id="page-prev" title="이전 페이지" style="display:none">‹</button>
       <div class="stage" id="stage">
         <img id="d-image" alt="" style="display:none" />
         <div class="empty" id="stage-empty">디자인을 선택하면 여기에 크게 표시됩니다</div>
       </div>
-      <button class="nav-btn right" id="page-next" title="다음 페이지">›</button>
+      <button class="nav-btn" id="page-next" title="다음 페이지" style="display:none">›</button>
     </div>
     <div class="page-dots" id="page-dots"></div>
     <div class="page-label" id="page-label"></div>
@@ -595,8 +590,8 @@ async function pollNotes() {
   }
 }
 function updateLiveLabel() {
-  if (STATE.gsUrl) { $('live-status').innerHTML = '<span class="live-dot"></span>실시간'; $('gs-hint').textContent = '실시간 공유 켜짐 · 팀원 메모가 몇 초마다 자동 반영됩니다'; }
-  else { $('live-status').innerHTML = '<span class="live-off"></span>로컬'; $('gs-hint').textContent = '비우면 메모는 이 브라우저에만 저장 · URL 입력 시 팀원과 실시간 공유'; }
+  if (STATE.gsUrl) $('live-status').innerHTML = '<span class="live-dot"></span>실시간';
+  else $('live-status').innerHTML = '<span class="live-off"></span>로컬';
 }
 
 // ---------- CSV 내보내기 ----------
@@ -653,7 +648,7 @@ async function enterViewer() {
   }
   // 사이드바 입력에 반영 + 저장
   $('researcher').value = name; localStorage.setItem('aip_researcher', name);
-  STATE.gsUrl = gs; $('gs-url').value = gs; localStorage.setItem('aip_gs_url', gs);
+  STATE.gsUrl = gs; localStorage.setItem('aip_gs_url', gs);
 
   // 그룹별 유저 수 탭 라벨
   let goodN = 0, badN = 0;
@@ -704,7 +699,6 @@ function init() {
   $('export-csv').onclick = exportCSV;
   $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
   $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
-  $('gs-url').oninput = e => { STATE.gsUrl = e.target.value.trim(); localStorage.setItem('aip_gs_url', STATE.gsUrl); updateLiveLabel(); if (STATE.gsUrl) pollNotes(); };
 
   document.addEventListener('keydown', e => {
     if ($('app').style.display === 'none') return;   // 시작 화면에선 단축키 비활성
