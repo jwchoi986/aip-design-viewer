@@ -71,8 +71,9 @@
   .u-id { font-weight: 600; font-size: 13px; }
   .u-sub { font-size: 11px; color: var(--muted); }
   .u-badges { display: flex; gap: 4px; align-items: center; }
-  .badge { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-  .badge.memo { background: var(--good); color: #fff; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .badge.done { background: var(--good); color: #fff; }        /* 모든 디자인 코멘트 완료 */
+  .badge.doing { background: var(--warn); color: #fff; }       /* 일부만 코멘트 (진행중) */
 
   /* 그룹 탭 */
   .group-tabs { display: flex; border-bottom: 1px solid var(--border); }
@@ -88,7 +89,6 @@
   .design-row.evaluated { background: #eaf7ef; }
   .design-row.evaluated .d-title { color: var(--good); }
   .design-row.evaluated.active { background: #d6f0e0; }
-  .user-row.has-memo .u-id::before { content: '✅ '; }
   .design-row .thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--border); flex-shrink: 0; }
   .design-row .d-main { flex: 1; min-width: 0; }
   .design-row .d-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -377,26 +377,28 @@ function buildUserList() {
     .filter(u => u.group === STATE.currentGroup)
     .filter(u => !q || u.account_id.includes(q))
     .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
-  const SORT_LABEL = { total_dl_cnt: '총DL', made_design_cnt: '제작', usage_span_days: '사용기간', dl_day_cnt: 'DL일수' };
 
   const cnt = memoCountByDesign();
   const wrap = $('user-list');
   wrap.innerHTML = '';
   const frag = document.createDocumentFragment();
   STATE.sortedUsers.forEach(u => {
-    const memoTotal = u.indices.reduce((s, i) => s + (cnt[STATE.rows[i].design_idx] || 0), 0);
-    const val = u[sortBy] == null ? '–' : (u[sortBy] || 0).toLocaleString();
+    // 코멘트가 달린 디자인 수 계산 → 전부면 '완료', 일부면 '진행중'
+    const total = u.indices.length;
+    let commented = 0;
+    u.indices.forEach(i => { if ((cnt[STATE.rows[i].design_idx] || 0) > 0) commented++; });
+    let statusBadge = '';
+    if (total > 0 && commented === total) statusBadge = '<span class="badge done">완료</span>';
+    else if (commented > 0) statusBadge = '<span class="badge doing">진행중</span>';
     const row = document.createElement('div');
-    row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '') + (memoTotal ? ' has-memo' : '');
+    row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '');
     row.innerHTML = `
       <span class="u-caret">▶</span>
       <div class="u-main">
         <div class="u-id">${u.account_id}</div>
-        <div class="u-sub">${SORT_LABEL[sortBy]} ${val} · 디자인 ${u.indices.length}</div>
+        <div class="u-sub">디자인 ${total}개</div>
       </div>
-      <div class="u-badges">
-        ${memoTotal ? `<span class="badge memo">✎${memoTotal}</span>` : ''}
-      </div>`;
+      <div class="u-badges">${statusBadge}</div>`;
     row.onclick = () => toggleUser(u.key);
     frag.appendChild(row);
     if (STATE.openUser === u.key) frag.appendChild(buildDesignSub(u, cnt));
