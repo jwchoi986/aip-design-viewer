@@ -116,8 +116,10 @@
   .strip-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .strip-thumb.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
   .strip-thumb span { position: absolute; bottom: 1px; right: 2px; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,.6); padding: 0 4px; border-radius: 6px; }
-  .slide-big { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-  .slide-big img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  .slide-big { flex: 1; min-height: 0; display: flex; align-items: center; gap: 12px; }
+  .slide-big img { flex: 1; min-width: 0; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  .slide-nav-btn { flex: 0 0 46px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 24px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+  .slide-nav-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .design-nav { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
   .btn { padding: 9px 14px; border: 1px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
   .btn:hover { background: var(--accent-soft); } .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -237,7 +239,11 @@
           <button class="back-grid" id="back-grid" title="전체 슬라이드 보기">▦ 전체</button>
           <div class="slide-strip" id="slide-strip"></div>
         </div>
-        <div class="slide-big"><img id="slide-big-img" alt="" /></div>
+        <div class="slide-big">
+          <button class="slide-nav-btn" id="slide-prev" title="이전 슬라이드">‹</button>
+          <img id="slide-big-img" alt="" />
+          <button class="slide-nav-btn" id="slide-next" title="다음 슬라이드">›</button>
+        </div>
       </div>
       <div class="empty" id="stage-empty">디자인을 선택하면 모든 슬라이드가 여기에 표시됩니다</div>
     </div>
@@ -518,7 +524,8 @@ function renderEnlarged() {
     strip.appendChild(t);
   });
   $('slide-big-img').src = pages[STATE.page];
-  $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
+  $('slide-prev').style.display = $('slide-next').style.display = pages.length > 1 ? '' : 'none';
+  $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · ‹ › 또는 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
   const act = strip.querySelector('.strip-thumb.active');
   if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
@@ -766,6 +773,8 @@ function init() {
   $('prev-design').onclick = () => goDesign(-1);
   $('next-design').onclick = () => goDesign(1);
   $('back-grid').onclick = showGrid;   // 확대 → 전체 그리드로
+  $('slide-prev').onclick = () => enlargedNav(-1);
+  $('slide-next').onclick = () => enlargedNav(1);
   $('save-memo').onclick = saveMemo;
   $('memo').oninput = saveDraftFromInput;   // 타이핑할 때마다 초안 보관 → 이동해도 안 사라짐
   $('export-csv').onclick = exportCSV;
