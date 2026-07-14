@@ -41,13 +41,23 @@
   .u-sub { font-size: 11px; color: var(--muted); }
   .u-badges { display: flex; gap: 4px; align-items: center; }
   .badge { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-  .badge.heavy { background: #e7f8ef; color: var(--good); } .badge.light { background: #fef3e2; color: var(--warn); }
-  .badge.memo { background: var(--accent); color: #fff; }
+  .badge.memo { background: var(--good); color: #fff; }
+
+  /* 그룹 탭 */
+  .group-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .group-tab { flex: 1; padding: 11px 8px; border: none; background: #f7f8fa; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+  .group-tab:hover { background: var(--accent-soft); }
+  .group-tab.active { background: #fff; color: var(--accent); border-bottom-color: var(--accent); }
 
   .design-sub { background: #fafbfc; border-bottom: 1px solid var(--border); }
   .design-row { display: flex; gap: 10px; align-items: center; padding: 8px 14px 8px 28px; cursor: pointer; border-top: 1px dashed var(--border); }
   .design-row:hover { background: var(--accent-soft); }
   .design-row.active { background: #dfe9ff; }
+  /* 평가 완료 디자인 — 초록 톤으로 구분 */
+  .design-row.evaluated { background: #eaf7ef; }
+  .design-row.evaluated .d-title { color: var(--good); }
+  .design-row.evaluated.active { background: #d6f0e0; }
+  .user-row.has-memo .u-id::before { content: '✅ '; }
   .design-row .thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--border); flex-shrink: 0; }
   .design-row .d-main { flex: 1; min-width: 0; }
   .design-row .d-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -133,6 +143,10 @@
         <div class="hint" id="gs-hint">비우면 메모는 이 브라우저에만 저장 · URL 입력 시 팀원과 실시간 공유</div>
       </div>
     </div>
+    <div class="group-tabs">
+      <button class="group-tab active" data-group="good" id="tab-good">잘 쓰는 유저</button>
+      <button class="group-tab" data-group="bad" id="tab-bad">못 쓰는 유저</button>
+    </div>
     <div class="list-wrap" id="user-list"></div>
   </aside>
 
@@ -166,7 +180,7 @@
     <div class="card">
       <h3>유저 정보</h3>
       <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
-      <div class="info-row"><span>등급</span><b id="i-grade">–</b></div>
+      <div class="info-row"><span>그룹</span><b id="i-group">–</b></div>
       <div class="info-row"><span>총 다운로드</span><b id="i-totaldl">–</b></div>
       <div class="info-row"><span>제작 디자인 수</span><b id="i-made">–</b></div>
       <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
@@ -200,7 +214,7 @@
 const STATE = {
   rows: [], users: new Map(), sortedUsers: [],
   currentUser: null, workingList: [], cursor: -1, page: 0,
-  allNotes: [], pending: [], gsUrl: '', dlMedian: 0, openUser: null,
+  allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good',
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
@@ -208,27 +222,30 @@ const $ = id => document.getElementById(id);
 
 // ---------- 데이터 로딩 ----------
 async function loadData() {
-  let text;
-  try {
-    const res = await fetch('data/designs.csv.gz');
-    if (!res.ok) throw new Error('gz-missing');
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;   // gzip 매직넘버 확인
-    if (isGzip && typeof DecompressionStream !== 'undefined') {
-      const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
-      text = await new Response(ds).text();
-    } else {
-      // CDN(Vercel 등)이 이미 압축을 풀어 전달했거나 브라우저 미지원 → 그대로 텍스트로 처리
-      text = new TextDecoder('utf-8').decode(buf);
-    }
-  } catch (e) {
-    $('loading-text').textContent = '평문 CSV 불러오는 중…';
-    const res = await fetch('data/designs.csv');
-    if (!res.ok) throw new Error('data/designs.csv(.gz) 를 찾을 수 없습니다.');
-    text = await res.text();
-  }
-  STATE.rows = parseCSV(text);
+  $('loading-text').textContent = '잘 쓰는 유저 데이터 불러오는 중…';
+  const good = await fetchCsv('data/designs.csv.gz');
+  good.forEach(r => r._group = 'good');
+  $('loading-text').textContent = '못 쓰는 유저 데이터 불러오는 중…';
+  let bad = [];
+  try { bad = await fetchCsv('data/bad.csv.gz'); bad.forEach(r => r._group = 'bad'); }
+  catch (e) { console.warn('bad.csv.gz 로딩 실패 — 잘 쓰는 유저만 표시합니다.', e); }
+  STATE.rows = good.concat(bad);
   buildUserIndex();
+}
+async function fetchCsv(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(path + ' 없음');
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;   // gzip 매직넘버 확인
+  let text;
+  if (isGzip && typeof DecompressionStream !== 'undefined') {
+    const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+    text = await new Response(ds).text();
+  } else {
+    // CDN(Vercel 등)이 이미 압축을 풀어 전달했거나 브라우저 미지원 → 그대로 텍스트로 처리
+    text = new TextDecoder('utf-8').decode(buf);
+  }
+  return parseCSV(text);
 }
 function parseCSV(text) {
   const rows = []; let field = '', record = [], q = false;
@@ -246,16 +263,19 @@ function parseCSV(text) {
 }
 function buildUserIndex() {
   STATE.rows.forEach((row, idx) => {
-    const id = row.account_id;
-    if (!STATE.users.has(id)) STATE.users.set(id, {
-      account_id: id, total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
-      usage_span_days: +row.usage_span_days || 0, dl_day_cnt: +row.dl_day_cnt || 0, indices: [],
+    const key = row._group + '|' + row.account_id;
+    if (!STATE.users.has(key)) STATE.users.set(key, {
+      key, account_id: row.account_id, group: row._group,
+      total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
+      usage_span_days: row.usage_span_days !== undefined && row.usage_span_days !== '' ? (+row.usage_span_days || 0) : null,
+      dl_day_cnt: +row.dl_day_cnt || 0, indices: [],
     });
-    STATE.users.get(id).indices.push(idx);
+    STATE.users.get(key).indices.push(idx);
   });
 }
 function currentPages(row) { return PAGE_COLS.map(c => row[c]).filter(v => v && v !== 'null' && v.startsWith('http')); }
-function gradeOf(u) { return u.total_dl_cnt >= STATE.dlMedian ? 'heavy' : 'light'; }
+function userKeyOf(row) { return row._group + '|' + row.account_id; }
+const GROUP_LABEL = { good: '잘 쓰는 유저', bad: '못 쓰는 유저' };
 
 // ---------- 좌측 유저 리스트 ----------
 function memoCountByDesign() {
@@ -265,8 +285,9 @@ function buildUserList() {
   const sortBy = $('sort-by').value;
   const q = $('search').value.trim();
   STATE.sortedUsers = [...STATE.users.values()]
+    .filter(u => u.group === STATE.currentGroup)
     .filter(u => !q || u.account_id.includes(q))
-    .sort((a, b) => b[sortBy] - a[sortBy]);
+    .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
 
   const cnt = memoCountByDesign();
   const wrap = $('user-list');
@@ -274,23 +295,23 @@ function buildUserList() {
   const frag = document.createDocumentFragment();
   STATE.sortedUsers.forEach(u => {
     const memoTotal = u.indices.reduce((s, i) => s + (cnt[STATE.rows[i].design_idx] || 0), 0);
-    const grade = gradeOf(u);
+    const val = u[sortBy] === null ? '–' : (u[sortBy] || 0).toLocaleString();
     const row = document.createElement('div');
-    row.className = 'user-row' + (STATE.openUser === u.account_id ? ' open' : '');
+    row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '') + (memoTotal ? ' has-memo' : '');
     row.innerHTML = `
       <span class="u-caret">▶</span>
       <div class="u-main">
         <div class="u-id">${u.account_id}</div>
-        <div class="u-sub">${sortBy}=${u[sortBy].toLocaleString()} · 디자인 ${u.indices.length}</div>
+        <div class="u-sub">${sortBy}=${val} · 디자인 ${u.indices.length}</div>
       </div>
       <div class="u-badges">
         ${memoTotal ? `<span class="badge memo">✎${memoTotal}</span>` : ''}
-        <span class="badge ${grade}">${grade === 'heavy' ? '헤비' : '라이트'}</span>
       </div>`;
-    row.onclick = () => toggleUser(u.account_id);
+    row.onclick = () => toggleUser(u.key);
     frag.appendChild(row);
-    if (STATE.openUser === u.account_id) frag.appendChild(buildDesignSub(u, cnt));
+    if (STATE.openUser === u.key) frag.appendChild(buildDesignSub(u, cnt));
   });
+  if (!STATE.sortedUsers.length) { const e = document.createElement('div'); e.className = 'empty-feed'; e.style.padding = '16px'; e.textContent = '해당하는 유저가 없습니다.'; frag.appendChild(e); }
   wrap.appendChild(frag);
 }
 function buildDesignSub(u, cnt) {
@@ -301,33 +322,33 @@ function buildDesignSub(u, cnt) {
     const pages = currentPages(row);
     const c = cnt[row.design_idx] || 0;
     const el = document.createElement('div');
-    el.className = 'design-row' + (STATE.workingList[STATE.cursor] === idx ? ' active' : '');
+    el.className = 'design-row' + (STATE.workingList[STATE.cursor] === idx ? ' active' : '') + (c ? ' evaluated' : '');
     el.dataset.idx = idx;
     el.innerHTML = `
       <img class="thumb" src="${pages[0] || ''}" loading="lazy" onerror="this.style.visibility='hidden'"/>
       <div class="d-main">
-        <div class="d-title">${escapeHtml(row.design_title || '(제목 없음)')}</div>
-        <div class="d-sub">${pages.length}p · idx ${row.design_idx}${c ? ` · ✎${c}` : ''}</div>
+        <div class="d-title">${c ? '✅ ' : ''}${escapeHtml(row.design_title || '(제목 없음)')}</div>
+        <div class="d-sub">${pages.length}p · idx ${row.design_idx}${c ? ` · 평가 ${c}건` : ''}</div>
       </div>`;
-    el.onclick = (ev) => { ev.stopPropagation(); openDesign(u.account_id, idx); };
+    el.onclick = (ev) => { ev.stopPropagation(); openDesign(u.key, idx); };
     box.appendChild(el);
   });
   return box;
 }
-function toggleUser(accountId) {
-  STATE.openUser = STATE.openUser === accountId ? null : accountId;
+function toggleUser(key) {
+  STATE.openUser = STATE.openUser === key ? null : key;
   buildUserList();
 }
 
 // ---------- 디자인 열기 ----------
-function openDesign(accountId, idx) {
-  const u = STATE.users.get(accountId);
-  STATE.currentUser = accountId;
+function openDesign(key, idx) {
+  const u = STATE.users.get(key);
+  STATE.currentUser = key;
   STATE.workingList = u.indices.slice();
   STATE.cursor = STATE.workingList.indexOf(idx);
   STATE.page = 0;
   $('pos-range').max = Math.max(0, STATE.workingList.length - 1);
-  if (STATE.openUser !== accountId) { STATE.openUser = accountId; }
+  STATE.openUser = key;
   buildUserList();
   render();
   refreshFeed();
@@ -348,11 +369,11 @@ function goPage(delta) {
 function render() {
   if (STATE.cursor < 0) return;
   const row = STATE.rows[STATE.workingList[STATE.cursor]];
-  const u = STATE.users.get(row.account_id);
+  const u = STATE.users.get(userKeyOf(row));
   const pages = currentPages(row);
   if (STATE.page >= pages.length) STATE.page = 0;
 
-  $('crumb').innerHTML = `유저 <b>${row.account_id}</b> › 디자인 ${STATE.cursor + 1}/${STATE.workingList.length}`;
+  $('crumb').innerHTML = `${GROUP_LABEL[u.group]} <b>${row.account_id}</b> › 디자인 ${STATE.cursor + 1}/${STATE.workingList.length}`;
   $('d-title').textContent = row.design_title || '(제목 없음)';
 
   const img = $('d-image'), empty = $('stage-empty');
@@ -370,14 +391,13 @@ function render() {
   $('next-design').disabled = STATE.cursor === STATE.workingList.length - 1;
 
   $('i-account').textContent = row.account_id;
+  $('i-group').textContent = GROUP_LABEL[u.group];
   $('i-totaldl').textContent = u.total_dl_cnt.toLocaleString();
   $('i-made').textContent = u.made_design_cnt.toLocaleString();
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
-  $('i-span').textContent = u.usage_span_days.toLocaleString();
+  $('i-span').textContent = u.usage_span_days === null ? '–' : u.usage_span_days.toLocaleString();
   $('i-pagecnt').textContent = row.page_cnt;
   $('i-didx').textContent = row.design_idx;
-  const g = gradeOf(u);
-  $('i-grade').innerHTML = `<span class="badge ${g}">${g === 'heavy' ? '헤비유저' : '라이트유저'}</span>`;
 
   // 내 이전 메모 불러오기
   const mine = $('researcher').value.trim();
@@ -486,8 +506,11 @@ function exportCSV() {
 // ---------- 초기화 ----------
 async function init() {
   try { await loadData(); } catch (e) { $('loading-text').textContent = '⚠ ' + e.message; return; }
-  const dls = [...STATE.users.values()].map(u => u.total_dl_cnt).sort((a, b) => a - b);
-  STATE.dlMedian = dls[Math.floor(dls.length / 2)] || 0;
+  // 그룹별 유저 수 탭 라벨에 표시
+  let goodN = 0, badN = 0;
+  STATE.users.forEach(u => { if (u.group === 'good') goodN++; else badN++; });
+  $('tab-good').textContent = `잘 쓰는 유저 (${goodN.toLocaleString()})`;
+  $('tab-bad').textContent = `못 쓰는 유저 (${badN.toLocaleString()})`;
   STATE.gsUrl = localStorage.getItem('aip_gs_url') || '';
   $('gs-url').value = STATE.gsUrl;
   if (!STATE.gsUrl) { try { STATE.allNotes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; } catch (e) { STATE.allNotes = []; } }
@@ -499,6 +522,13 @@ async function init() {
 
   $('sort-by').onchange = buildUserList;
   $('search').oninput = buildUserList;
+  document.querySelectorAll('.group-tab').forEach(tab => tab.onclick = () => {
+    STATE.currentGroup = tab.dataset.group;
+    document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t === tab));
+    STATE.openUser = null;
+    $('user-list').scrollTop = 0;
+    buildUserList();
+  });
   $('prev-design').onclick = () => goDesign(-1);
   $('next-design').onclick = () => goDesign(1);
   $('page-prev').onclick = () => goPage(-1);
