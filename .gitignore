@@ -1,0 +1,5 @@
+# 다운로드로 생성되는 메모 산출물 (원본은 구글시트/localStorage)
+research_notes.csv
+
+# OS
+.DS_Store

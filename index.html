@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aip 디자인 리서치 뷰어</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --border: #e3e6ea; --text: #1c2126; --muted: #6b7683;
+    --accent: #3b6ef6; --accent-soft: #eaf0ff; --good: #12a150; --warn: #d97706;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  #app { display: none; height: 100vh; grid-template-columns: 340px 1fr 360px; }
+  #loading { display: flex; height: 100vh; align-items: center; justify-content: center; flex-direction: column; gap: 14px; color: var(--muted); }
+  .spinner { width: 38px; height: 38px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Left: master list ===== */
+  aside { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .aside-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--border); }
+  .aside-head h1 { font-size: 16px; margin: 0 0 10px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: var(--text); }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .list-wrap { flex: 1; overflow-y: auto; }
+  .user-row { padding: 9px 14px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .user-row:hover { background: var(--accent-soft); }
+  .user-row.open { background: var(--accent-soft); }
+  .u-caret { color: var(--muted); font-size: 11px; width: 10px; transition: transform .15s; }
+  .user-row.open .u-caret { transform: rotate(90deg); }
+  .u-main { flex: 1; min-width: 0; }
+  .u-id { font-weight: 600; font-size: 13px; }
+  .u-sub { font-size: 11px; color: var(--muted); }
+  .u-badges { display: flex; gap: 4px; align-items: center; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .badge.heavy { background: #e7f8ef; color: var(--good); } .badge.light { background: #fef3e2; color: var(--warn); }
+  .badge.memo { background: var(--accent); color: #fff; }
+
+  .design-sub { background: #fafbfc; border-bottom: 1px solid var(--border); }
+  .design-row { display: flex; gap: 10px; align-items: center; padding: 8px 14px 8px 28px; cursor: pointer; border-top: 1px dashed var(--border); }
+  .design-row:hover { background: var(--accent-soft); }
+  .design-row.active { background: #dfe9ff; }
+  .design-row .thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--border); flex-shrink: 0; }
+  .design-row .d-main { flex: 1; min-width: 0; }
+  .design-row .d-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .design-row .d-sub { font-size: 10px; color: var(--muted); }
+
+  /* ===== Center ===== */
+  main { display: flex; flex-direction: column; padding: 16px 22px; overflow: hidden; }
+  .crumb { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .crumb b { color: var(--text); }
+  .design-title { font-size: 17px; font-weight: 700; margin: 0 0 10px; }
+  .stage { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; box-shadow: var(--shadow); }
+  .stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .stage .empty { color: var(--muted); font-size: 13px; }
+  .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,.92); cursor: pointer; font-size: 20px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+  .nav-btn:hover { background: #fff; } .nav-btn.left { left: 14px; } .nav-btn.right { right: 14px; }
+  .page-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; } .dot.active { background: var(--accent); }
+  .page-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .design-nav { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .btn { padding: 9px 14px; border: 1px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
+  .btn:hover { background: var(--accent-soft); } .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .pos-label { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pos-slider { flex: 1; } .pos-slider input { width: 100%; }
+
+  /* ===== Right ===== */
+  .right { background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .card h3 { font-size: 12px; margin: 0 0 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; align-items: center; }
+  .info-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px dashed var(--border); }
+  .info-row:last-child { border-bottom: none; } .info-row span { color: var(--muted); } .info-row b { font-variant-numeric: tabular-nums; }
+  textarea { width: 100%; min-height: 84px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 9px; font-family: inherit; font-size: 13px; line-height: 1.5; }
+  textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .save-row { display: flex; gap: 8px; margin-top: 8px; } .save-row .btn { flex: 1; }
+  .toast { font-size: 12px; color: var(--good); margin-top: 6px; min-height: 15px; }
+  .feed { margin-top: 4px; display: flex; flex-direction: column; gap: 7px; }
+  .note-item { font-size: 12px; padding: 8px 10px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--accent); }
+  .note-item.mine { border-left-color: var(--good); }
+  .note-item .m { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; justify-content: space-between; }
+  .note-item .who { font-weight: 700; color: var(--text); }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); display: inline-block; margin-right: 5px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .live-off { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 5px; }
+  .empty-feed { font-size: 12px; color: var(--muted); padding: 6px 0; }
+  .toolbar { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; } .toolbar .btn { flex: 1; font-size: 12px; }
+  kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">디자인 데이터 불러오는 중…</div>
+</div>
+
+<div id="app">
+  <!-- ===== Left: master list ===== -->
+  <aside>
+    <div class="aside-head">
+      <h1>Aip 리서치 뷰어</h1>
+      <div class="field">
+        <label>내 이름 (메모 작성자)</label>
+        <input id="researcher" placeholder="예: jwchoi" />
+      </div>
+      <div class="row2">
+        <div class="field" style="margin-bottom:8px">
+          <label>정렬</label>
+          <select id="sort-by">
+            <option value="total_dl_cnt">총 다운로드</option>
+            <option value="made_design_cnt">제작 수</option>
+            <option value="usage_span_days">사용기간</option>
+            <option value="dl_day_cnt">다운로드일수</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:8px">
+          <label>유저 검색</label>
+          <input id="search" placeholder="account_id" />
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:6px">
+        <label>구글시트 연동 (실시간 공유)</label>
+        <input id="gs-url" placeholder="Apps Script Web App URL" />
+        <div class="hint" id="gs-hint">비우면 메모는 이 브라우저에만 저장 · URL 입력 시 팀원과 실시간 공유</div>
+      </div>
+    </div>
+    <div class="list-wrap" id="user-list"></div>
+  </aside>
+
+  <!-- ===== Center ===== -->
+  <main>
+    <div class="crumb" id="crumb">왼쪽 목록에서 유저 → 디자인을 선택하세요</div>
+    <h2 class="design-title" id="d-title">–</h2>
+
+    <div class="stage" id="stage">
+      <button class="nav-btn left" id="page-prev" title="이전 페이지">‹</button>
+      <img id="d-image" alt="" style="display:none" />
+      <div class="empty" id="stage-empty">디자인을 선택하면 여기에 크게 표시됩니다</div>
+      <button class="nav-btn right" id="page-next" title="다음 페이지">›</button>
+    </div>
+    <div class="page-dots" id="page-dots"></div>
+    <div class="page-label" id="page-label"></div>
+
+    <div class="design-nav">
+      <button class="btn" id="prev-design">‹ 이전</button>
+      <div class="pos-slider"><input type="range" id="pos-range" min="0" max="0" value="0" /></div>
+      <span class="pos-label" id="pos-label">– / –</span>
+      <button class="btn primary" id="next-design">다음 ›</button>
+    </div>
+    <div class="hint" style="text-align:center;margin-top:6px">
+      <kbd>←</kbd>/<kbd>→</kbd> 같은 유저 내 디자인 이동 · <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> 메모 저장
+    </div>
+  </main>
+
+  <!-- ===== Right ===== -->
+  <div class="right">
+    <div class="card">
+      <h3>유저 정보</h3>
+      <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
+      <div class="info-row"><span>등급</span><b id="i-grade">–</b></div>
+      <div class="info-row"><span>총 다운로드</span><b id="i-totaldl">–</b></div>
+      <div class="info-row"><span>제작 디자인 수</span><b id="i-made">–</b></div>
+      <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
+      <div class="info-row"><span>사용 기간(일)</span><b id="i-span">–</b></div>
+      <div class="info-row"><span>이 디자인 페이지 수</span><b id="i-pagecnt">–</b></div>
+      <div class="info-row"><span>design_idx</span><b id="i-didx">–</b></div>
+    </div>
+
+    <div class="card">
+      <h3>메모 작성</h3>
+      <textarea id="memo" placeholder="이 디자인의 특징·패턴을 메모하세요…"></textarea>
+      <div class="save-row"><button class="btn primary" id="save-memo">저장</button></div>
+      <div class="toast" id="save-toast"></div>
+    </div>
+
+    <div class="card" style="flex:1">
+      <h3><span id="feed-title">이 디자인의 메모</span> <span id="live-status"></span></h3>
+      <div class="feed" id="feed"></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn" id="export-csv">research_notes.csv 내보내기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Aip 디자인 리서치 뷰어 — 좌측 마스터 리스트 + 실시간 공동 메모
+// ============================================================
+const STATE = {
+  rows: [], users: new Map(), sortedUsers: [],
+  currentUser: null, workingList: [], cursor: -1, page: 0,
+  allNotes: [], pending: [], gsUrl: '', dlMedian: 0, openUser: null,
+};
+const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
+const NOTES_KEY = 'aip_research_notes_v1';
+const $ = id => document.getElementById(id);
+
+// ---------- 데이터 로딩 ----------
+async function loadData() {
+  let text;
+  try {
+    const res = await fetch('data/designs.csv.gz');
+    if (!res.ok) throw new Error('gz-missing');
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;   // gzip 매직넘버 확인
+    if (isGzip && typeof DecompressionStream !== 'undefined') {
+      const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+      text = await new Response(ds).text();
+    } else {
+      // CDN(Vercel 등)이 이미 압축을 풀어 전달했거나 브라우저 미지원 → 그대로 텍스트로 처리
+      text = new TextDecoder('utf-8').decode(buf);
+    }
+  } catch (e) {
+    $('loading-text').textContent = '평문 CSV 불러오는 중…';
+    const res = await fetch('data/designs.csv');
+    if (!res.ok) throw new Error('data/designs.csv(.gz) 를 찾을 수 없습니다.');
+    text = await res.text();
+  }
+  STATE.rows = parseCSV(text);
+  buildUserIndex();
+}
+function parseCSV(text) {
+  const rows = []; let field = '', record = [], q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; } else field += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { record.push(field); field = ''; }
+    else if (c === '\n') { record.push(field); rows.push(record); record = []; field = ''; }
+    else if (c !== '\r') field += c;
+  }
+  if (field.length || record.length) { record.push(field); rows.push(record); }
+  const h = rows.shift();
+  return rows.filter(r => r.length > 1).map(r => { const o = {}; h.forEach((k, i) => o[k] = r[i] ?? ''); return o; });
+}
+function buildUserIndex() {
+  STATE.rows.forEach((row, idx) => {
+    const id = row.account_id;
+    if (!STATE.users.has(id)) STATE.users.set(id, {
+      account_id: id, total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
+      usage_span_days: +row.usage_span_days || 0, dl_day_cnt: +row.dl_day_cnt || 0, indices: [],
+    });
+    STATE.users.get(id).indices.push(idx);
+  });
+}
+function currentPages(row) { return PAGE_COLS.map(c => row[c]).filter(v => v && v !== 'null' && v.startsWith('http')); }
+function gradeOf(u) { return u.total_dl_cnt >= STATE.dlMedian ? 'heavy' : 'light'; }
+
+// ---------- 좌측 유저 리스트 ----------
+function memoCountByDesign() {
+  const m = {}; STATE.allNotes.forEach(n => { m[n.design_idx] = (m[n.design_idx] || 0) + 1; }); return m;
+}
+function buildUserList() {
+  const sortBy = $('sort-by').value;
+  const q = $('search').value.trim();
+  STATE.sortedUsers = [...STATE.users.values()]
+    .filter(u => !q || u.account_id.includes(q))
+    .sort((a, b) => b[sortBy] - a[sortBy]);
+
+  const cnt = memoCountByDesign();
+  const wrap = $('user-list');
+  wrap.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  STATE.sortedUsers.forEach(u => {
+    const memoTotal = u.indices.reduce((s, i) => s + (cnt[STATE.rows[i].design_idx] || 0), 0);
+    const grade = gradeOf(u);
+    const row = document.createElement('div');
+    row.className = 'user-row' + (STATE.openUser === u.account_id ? ' open' : '');
+    row.innerHTML = `
+      <span class="u-caret">▶</span>
+      <div class="u-main">
+        <div class="u-id">${u.account_id}</div>
+        <div class="u-sub">${sortBy}=${u[sortBy].toLocaleString()} · 디자인 ${u.indices.length}</div>
+      </div>
+      <div class="u-badges">
+        ${memoTotal ? `<span class="badge memo">✎${memoTotal}</span>` : ''}
+        <span class="badge ${grade}">${grade === 'heavy' ? '헤비' : '라이트'}</span>
+      </div>`;
+    row.onclick = () => toggleUser(u.account_id);
+    frag.appendChild(row);
+    if (STATE.openUser === u.account_id) frag.appendChild(buildDesignSub(u, cnt));
+  });
+  wrap.appendChild(frag);
+}
+function buildDesignSub(u, cnt) {
+  const box = document.createElement('div');
+  box.className = 'design-sub';
+  u.indices.forEach(idx => {
+    const row = STATE.rows[idx];
+    const pages = currentPages(row);
+    const c = cnt[row.design_idx] || 0;
+    const el = document.createElement('div');
+    el.className = 'design-row' + (STATE.workingList[STATE.cursor] === idx ? ' active' : '');
+    el.dataset.idx = idx;
+    el.innerHTML = `
+      <img class="thumb" src="${pages[0] || ''}" loading="lazy" onerror="this.style.visibility='hidden'"/>
+      <div class="d-main">
+        <div class="d-title">${escapeHtml(row.design_title || '(제목 없음)')}</div>
+        <div class="d-sub">${pages.length}p · idx ${row.design_idx}${c ? ` · ✎${c}` : ''}</div>
+      </div>`;
+    el.onclick = (ev) => { ev.stopPropagation(); openDesign(u.account_id, idx); };
+    box.appendChild(el);
+  });
+  return box;
+}
+function toggleUser(accountId) {
+  STATE.openUser = STATE.openUser === accountId ? null : accountId;
+  buildUserList();
+}
+
+// ---------- 디자인 열기 ----------
+function openDesign(accountId, idx) {
+  const u = STATE.users.get(accountId);
+  STATE.currentUser = accountId;
+  STATE.workingList = u.indices.slice();
+  STATE.cursor = STATE.workingList.indexOf(idx);
+  STATE.page = 0;
+  $('pos-range').max = Math.max(0, STATE.workingList.length - 1);
+  if (STATE.openUser !== accountId) { STATE.openUser = accountId; }
+  buildUserList();
+  render();
+  refreshFeed();
+}
+function goDesign(delta) {
+  if (STATE.cursor < 0) return;
+  STATE.cursor = Math.min(Math.max(0, STATE.cursor + delta), STATE.workingList.length - 1);
+  STATE.page = 0; buildUserList(); render(); refreshFeed();
+}
+function goPage(delta) {
+  if (STATE.cursor < 0) return;
+  const pages = currentPages(STATE.rows[STATE.workingList[STATE.cursor]]);
+  if (!pages.length) return;
+  STATE.page = (STATE.page + delta + pages.length) % pages.length; render();
+}
+
+// ---------- 중앙/우측 렌더 ----------
+function render() {
+  if (STATE.cursor < 0) return;
+  const row = STATE.rows[STATE.workingList[STATE.cursor]];
+  const u = STATE.users.get(row.account_id);
+  const pages = currentPages(row);
+  if (STATE.page >= pages.length) STATE.page = 0;
+
+  $('crumb').innerHTML = `유저 <b>${row.account_id}</b> › 디자인 ${STATE.cursor + 1}/${STATE.workingList.length}`;
+  $('d-title').textContent = row.design_title || '(제목 없음)';
+
+  const img = $('d-image'), empty = $('stage-empty');
+  if (pages.length) { img.style.display = ''; empty.style.display = 'none'; img.src = pages[STATE.page]; }
+  else { img.style.display = 'none'; empty.style.display = ''; empty.textContent = '이미지 없음'; }
+
+  const dots = $('page-dots'); dots.innerHTML = '';
+  pages.forEach((_, i) => { const d = document.createElement('div'); d.className = 'dot' + (i === STATE.page ? ' active' : ''); d.onclick = () => { STATE.page = i; render(); }; dots.appendChild(d); });
+  $('page-label').textContent = pages.length ? `페이지 ${STATE.page + 1} / ${pages.length}` : '이미지 없음';
+  $('page-prev').style.display = $('page-next').style.display = pages.length > 1 ? '' : 'none';
+
+  $('pos-range').value = STATE.cursor;
+  $('pos-label').textContent = `${STATE.cursor + 1} / ${STATE.workingList.length}`;
+  $('prev-design').disabled = STATE.cursor === 0;
+  $('next-design').disabled = STATE.cursor === STATE.workingList.length - 1;
+
+  $('i-account').textContent = row.account_id;
+  $('i-totaldl').textContent = u.total_dl_cnt.toLocaleString();
+  $('i-made').textContent = u.made_design_cnt.toLocaleString();
+  $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
+  $('i-span').textContent = u.usage_span_days.toLocaleString();
+  $('i-pagecnt').textContent = row.page_cnt;
+  $('i-didx').textContent = row.design_idx;
+  const g = gradeOf(u);
+  $('i-grade').innerHTML = `<span class="badge ${g}">${g === 'heavy' ? '헤비유저' : '라이트유저'}</span>`;
+
+  // 내 이전 메모 불러오기
+  const mine = $('researcher').value.trim();
+  const found = STATE.allNotes.filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx && n.researcher === mine).pop();
+  $('memo').value = found ? found.memo : '';
+}
+
+// ---------- 실시간 메모 피드 ----------
+function refreshFeed() {
+  if (STATE.cursor < 0) { $('feed').innerHTML = '<div class="empty-feed">디자인을 선택하세요.</div>'; return; }
+  const row = STATE.rows[STATE.workingList[STATE.cursor]];
+  const mine = $('researcher').value.trim();
+  const list = STATE.allNotes
+    .filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx)
+    .sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  const feed = $('feed');
+  if (!list.length) { feed.innerHTML = '<div class="empty-feed">아직 메모가 없습니다. 첫 메모를 남겨보세요.</div>'; return; }
+  feed.innerHTML = list.map(n => `
+    <div class="note-item ${n.researcher === mine ? 'mine' : ''}">
+      <div class="m"><span class="who">${escapeHtml(n.researcher || '익명')}</span><span>${escapeHtml(n.ts)}</span></div>
+      ${escapeHtml(n.memo)}
+    </div>`).join('');
+}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ---------- 저장 ----------
+async function saveMemo() {
+  if (STATE.cursor < 0) { showToast('디자인을 먼저 선택하세요.', true); return; }
+  const row = STATE.rows[STATE.workingList[STATE.cursor]];
+  const memo = $('memo').value.trim();
+  const researcher = $('researcher').value.trim() || '익명';
+  if (!memo) { showToast('메모가 비어 있습니다.', true); return; }
+  const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const note = { researcher, account_id: row.account_id, design_idx: row.design_idx, design_title: row.design_title, memo, ts };
+
+  // 낙관적 반영 (서버 확정 전까지 pending 에 보관 → 폴링해도 사라지지 않음)
+  STATE.allNotes.push(note);
+  STATE.pending.push(note);
+  refreshFeed(); buildUserList();
+
+  if (STATE.gsUrl) {
+    try {
+      // credentials:'include' → 회사(Workspace) 로그인 쿠키를 함께 전송해야 쓰기가 허용됨
+      await fetch(STATE.gsUrl, { method: 'POST', mode: 'no-cors', credentials: 'include', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(note) });
+      showToast('저장 전송됨 · 시트 반영 확인 중…');
+      setTimeout(pollNotes, 1500);   // 서버 확정본 재동기화
+      setTimeout(pollNotes, 4000);   // 반영 지연 대비 한 번 더
+    } catch (e) { showToast('전송 실패 (임시 보관)', true); }
+  } else {
+    saveLocal(); showToast('저장됨 (이 브라우저)');
+  }
+}
+function sameNote(a, b) {
+  return String(a.account_id) === String(b.account_id) && String(a.design_idx) === String(b.design_idx)
+      && a.researcher === b.researcher && a.memo === b.memo;
+}
+function saveLocal() { localStorage.setItem(NOTES_KEY, JSON.stringify(STATE.allNotes)); }
+function showToast(msg, warn) { const t = $('save-toast'); t.textContent = msg; t.style.color = warn ? 'var(--warn)' : 'var(--good)'; setTimeout(() => { if (t.textContent === msg) t.textContent = ''; }, 3000); }
+
+// ---------- 폴링 (JSONP로 CORS 우회) ----------
+let jsonpN = 0;
+function jsonpGet(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '__aip_cb_' + (jsonpN++);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
+    function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error('script error')); };
+    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb + '&t=' + (jsonpN);
+    document.body.appendChild(s);
+  });
+}
+async function pollNotes() {
+  if (!STATE.gsUrl) return;
+  try {
+    const data = await jsonpGet(STATE.gsUrl);
+    if (data && data.notes) {
+      const server = data.notes;
+      // 서버에 이미 반영된 pending 메모는 제거, 아직 안 온 것은 유지 → "떴다 사라짐" 방지
+      STATE.pending = STATE.pending.filter(p => !server.some(s => sameNote(s, p)));
+      STATE.allNotes = server.concat(STATE.pending);
+      $('live-status').innerHTML = '<span class="live-dot"></span>실시간';
+      refreshFeed(); buildUserList();
+    }
+  } catch (e) {
+    $('live-status').innerHTML = '<span class="live-off"></span>연결 확인 필요';
+  }
+}
+function updateLiveLabel() {
+  if (STATE.gsUrl) { $('live-status').innerHTML = '<span class="live-dot"></span>실시간'; $('gs-hint').textContent = '실시간 공유 켜짐 · 팀원 메모가 몇 초마다 자동 반영됩니다'; }
+  else { $('live-status').innerHTML = '<span class="live-off"></span>로컬'; $('gs-hint').textContent = '비우면 메모는 이 브라우저에만 저장 · URL 입력 시 팀원과 실시간 공유'; }
+}
+
+// ---------- CSV 내보내기 ----------
+function exportCSV() {
+  if (!STATE.allNotes.length) { showToast('내보낼 메모가 없습니다.', true); return; }
+  const header = ['researcher', 'account_id', 'design_idx', 'design_title', 'memo', 'ts'];
+  const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const csv = '﻿' + header.join(',') + '\n' + STATE.allNotes.map(n => header.map(h => esc(n[h])).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'research_notes.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- 초기화 ----------
+async function init() {
+  try { await loadData(); } catch (e) { $('loading-text').textContent = '⚠ ' + e.message; return; }
+  const dls = [...STATE.users.values()].map(u => u.total_dl_cnt).sort((a, b) => a - b);
+  STATE.dlMedian = dls[Math.floor(dls.length / 2)] || 0;
+  STATE.gsUrl = localStorage.getItem('aip_gs_url') || '';
+  $('gs-url').value = STATE.gsUrl;
+  if (!STATE.gsUrl) { try { STATE.allNotes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; } catch (e) { STATE.allNotes = []; } }
+
+  buildUserList();
+  $('loading').style.display = 'none';
+  $('app').style.display = 'grid';
+  updateLiveLabel();
+
+  $('sort-by').onchange = buildUserList;
+  $('search').oninput = buildUserList;
+  $('prev-design').onclick = () => goDesign(-1);
+  $('next-design').onclick = () => goDesign(1);
+  $('page-prev').onclick = () => goPage(-1);
+  $('page-next').onclick = () => goPage(1);
+  $('pos-range').oninput = e => { if (STATE.cursor < 0) return; STATE.cursor = +e.target.value; STATE.page = 0; buildUserList(); render(); refreshFeed(); };
+  $('save-memo').onclick = saveMemo;
+  $('export-csv').onclick = exportCSV;
+  $('researcher').oninput = () => { render(); refreshFeed(); };
+  $('gs-url').oninput = e => { STATE.gsUrl = e.target.value.trim(); localStorage.setItem('aip_gs_url', STATE.gsUrl); updateLiveLabel(); if (STATE.gsUrl) pollNotes(); };
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'TEXTAREA') { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(); } return; }
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowLeft') goDesign(-1);
+    if (e.key === 'ArrowRight') goDesign(1);
+  });
+
+  // 실시간 폴링 (6초)
+  if (STATE.gsUrl) pollNotes();
+  setInterval(pollNotes, 6000);
+}
+init();
+</script>
+</body>
+</html>
