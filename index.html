@@ -96,8 +96,6 @@
 
   /* ===== Center ===== */
   main { display: flex; flex-direction: column; padding: 16px 22px; overflow: hidden; }
-  .crumb { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-  .crumb b { color: var(--text); }
   .design-title { font-size: 17px; font-weight: 700; margin: 0 0 10px; }
   /* 모든 슬라이드를 한번에 보여주는 그리드 */
   .slide-grid-wrap { flex: 1; min-height: 0; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 14px; display: flex; }
@@ -108,13 +106,18 @@
   .slide-cell img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .slide-num { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
   .page-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
-  /* 라이트박스 */
-  .lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; }
-  #lb-img { max-width: 88vw; max-height: 88vh; object-fit: contain; border-radius: 6px; box-shadow: 0 12px 48px rgba(0,0,0,.5); }
-  .lb-close { position: absolute; top: 18px; right: 26px; font-size: 34px; line-height: 1; color: #fff; background: none; border: none; cursor: pointer; }
-  .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 56px; height: 56px; border-radius: 50%; border: none; background: rgba(255,255,255,.92); font-size: 30px; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
-  .lb-nav:hover { background: #fff; } .lb-prev { left: 24px; } .lb-next { right: 24px; }
-  .lb-label { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 14px; background: rgba(0,0,0,.5); padding: 5px 14px; border-radius: 20px; font-variant-numeric: tabular-nums; }
+  /* 확대 보기 (가운데 패널 안): 상단 썸네일 스트립 + 큰 이미지 */
+  .slide-enlarged { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .enlarged-top { display: flex; align-items: center; gap: 8px; }
+  .back-grid { flex: 0 0 auto; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .back-grid:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .slide-strip { flex: 1; display: flex; gap: 7px; overflow-x: auto; padding: 4px 2px; }
+  .strip-thumb { position: relative; flex: 0 0 auto; width: 62px; height: 62px; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: #fbfbfc; display: flex; align-items: center; justify-content: center; }
+  .strip-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .strip-thumb.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .strip-thumb span { position: absolute; bottom: 1px; right: 2px; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,.6); padding: 0 4px; border-radius: 6px; }
+  .slide-big { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .slide-big img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
   .design-nav { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
   .btn { padding: 9px 14px; border: 1px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
   .btn:hover { background: var(--accent-soft); } .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -225,11 +228,17 @@
 
   <!-- ===== Center ===== -->
   <main>
-    <div class="crumb" id="crumb">왼쪽 목록에서 유저 → 디자인을 선택하세요</div>
-    <h2 class="design-title" id="d-title">–</h2>
+    <h2 class="design-title" id="d-title">왼쪽 목록에서 유저 → 디자인을 선택하세요</h2>
 
     <div class="slide-grid-wrap" id="slide-grid-wrap">
       <div class="slide-grid" id="slide-grid" style="display:none"></div>
+      <div class="slide-enlarged" id="slide-enlarged" style="display:none">
+        <div class="enlarged-top">
+          <button class="back-grid" id="back-grid" title="전체 슬라이드 보기">▦ 전체</button>
+          <div class="slide-strip" id="slide-strip"></div>
+        </div>
+        <div class="slide-big"><img id="slide-big-img" alt="" /></div>
+      </div>
       <div class="empty" id="stage-empty">디자인을 선택하면 모든 슬라이드가 여기에 표시됩니다</div>
     </div>
     <div class="page-label" id="page-label"></div>
@@ -274,15 +283,6 @@
       <button class="btn" id="export-csv">research_notes.csv 내보내기</button>
     </div>
   </div>
-</div>
-
-<!-- ===== 라이트박스 (슬라이드 크게 보기) ===== -->
-<div id="lightbox" class="lightbox" style="display:none">
-  <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
-  <button class="lb-nav lb-prev" id="lb-prev" title="이전 슬라이드">‹</button>
-  <img id="lb-img" alt="" />
-  <button class="lb-nav lb-next" id="lb-next" title="다음 슬라이드">›</button>
-  <div class="lb-label" id="lb-label"></div>
 </div>
 
 <script>
@@ -430,7 +430,7 @@ function buildDesignSub(u, cnt) {
       <img class="thumb" src="${pages[0] || ''}" loading="lazy" onerror="this.style.visibility='hidden'"/>
       <div class="d-main">
         <div class="d-title">${c ? '✅ ' : ''}${escapeHtml(row.design_title || '(제목 없음)')}</div>
-        <div class="d-sub">${pages.length}p · idx ${row.design_idx}${c ? ` · 평가 ${c}건` : ''}</div>
+        <div class="d-sub">${pages.length}p${c ? ` · 평가 ${c}건` : ''}</div>
       </div>`;
     el.onclick = (ev) => { ev.stopPropagation(); openDesign(u.key, idx); };
     box.appendChild(el);
@@ -477,33 +477,56 @@ function goDesign(delta) {
 function renderSlides(pages) {
   const grid = $('slide-grid'), empty = $('stage-empty');
   grid.innerHTML = '';
-  if (!pages.length) { grid.style.display = 'none'; empty.style.display = ''; empty.textContent = '이미지 없음'; return; }
-  empty.style.display = 'none'; grid.style.display = '';
+  if (!pages.length) { showGrid(); grid.style.display = 'none'; empty.style.display = ''; empty.textContent = '이미지 없음'; return; }
+  empty.style.display = 'none';
   pages.forEach((url, i) => {
     const cell = document.createElement('div');
     cell.className = 'slide-cell';
     cell.innerHTML = `<img src="${url}" loading="lazy" onerror="this.style.visibility='hidden'"/><span class="slide-num">${i + 1}</span>`;
-    cell.onclick = () => openLightbox(i);
+    cell.onclick = () => showEnlarged(i);
     grid.appendChild(cell);
   });
+  showGrid();   // 디자인 열면 기본은 그리드 모드
 }
 
-// ---------- 라이트박스 (클릭 시 크게 보기) ----------
-function openLightbox(i) { STATE.page = i; $('lightbox').style.display = 'flex'; updateLightbox(); }
-function closeLightbox() { $('lightbox').style.display = 'none'; }
-function lightboxOpen() { return $('lightbox').style.display !== 'none' && $('lightbox').style.display !== ''; }
-function lbNav(delta) {
+// ---------- 확대 보기 (가운데 패널 내: 상단 스트립 + 큰 이미지) ----------
+function showGrid() {
+  STATE.viewMode = 'grid';
+  $('slide-grid').style.display = '';
+  $('slide-enlarged').style.display = 'none';
+  const pages = STATE.currentPages || [];
+  $('page-label').textContent = pages.length ? `총 ${pages.length}개 슬라이드 · 클릭하면 크게 보기` : '';
+}
+function showEnlarged(i) {
+  STATE.viewMode = 'enlarged';
+  STATE.page = i;
+  $('slide-grid').style.display = 'none';
+  $('slide-enlarged').style.display = 'flex';
+  $('stage-empty').style.display = 'none';
+  renderEnlarged();
+}
+function renderEnlarged() {
+  const pages = STATE.currentPages || [];
+  if (!pages.length) { showGrid(); return; }
+  STATE.page = Math.max(0, Math.min(STATE.page, pages.length - 1));
+  const strip = $('slide-strip'); strip.innerHTML = '';
+  pages.forEach((url, i) => {
+    const t = document.createElement('div');
+    t.className = 'strip-thumb' + (i === STATE.page ? ' active' : '');
+    t.innerHTML = `<img src="${url}" loading="lazy" onerror="this.style.visibility='hidden'"/><span>${i + 1}</span>`;
+    t.onclick = () => { STATE.page = i; renderEnlarged(); };
+    strip.appendChild(t);
+  });
+  $('slide-big-img').src = pages[STATE.page];
+  $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
+  const act = strip.querySelector('.strip-thumb.active');
+  if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+function enlargedNav(delta) {
   const pages = STATE.currentPages || [];
   if (!pages.length) return;
   STATE.page = (STATE.page + delta + pages.length) % pages.length;
-  updateLightbox();
-}
-function updateLightbox() {
-  const pages = STATE.currentPages || [];
-  if (!pages.length) { closeLightbox(); return; }
-  $('lb-img').src = pages[STATE.page];
-  $('lb-label').textContent = `${STATE.page + 1} / ${pages.length}`;
-  $('lb-prev').style.display = $('lb-next').style.display = pages.length > 1 ? '' : 'none';
+  renderEnlarged();
 }
 
 // ---------- 중앙/우측 렌더 ----------
@@ -514,7 +537,6 @@ function render() {
   const pages = currentPages(row);
   STATE.currentPages = pages;
 
-  $('crumb').innerHTML = `${GROUP_LABEL[u.group]} <b>${row.account_id}</b> › 디자인 ${STATE.cursor + 1}/${STATE.workingList.length}`;
   $('d-title').textContent = row.design_title || '(제목 없음)';
 
   renderSlides(pages);
@@ -743,11 +765,7 @@ function init() {
   });
   $('prev-design').onclick = () => goDesign(-1);
   $('next-design').onclick = () => goDesign(1);
-  // 라이트박스
-  $('lb-close').onclick = closeLightbox;
-  $('lb-prev').onclick = () => lbNav(-1);
-  $('lb-next').onclick = () => lbNav(1);
-  $('lightbox').onclick = e => { if (e.target === $('lightbox')) closeLightbox(); };  // 배경 클릭 시 닫기
+  $('back-grid').onclick = showGrid;   // 확대 → 전체 그리드로
   $('save-memo').onclick = saveMemo;
   $('memo').oninput = saveDraftFromInput;   // 타이핑할 때마다 초안 보관 → 이동해도 안 사라짐
   $('export-csv').onclick = exportCSV;
@@ -755,16 +773,16 @@ function init() {
   $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
 
   document.addEventListener('keydown', e => {
-    // 라이트박스 열려 있으면: ←/→ 슬라이드 이동, Esc 닫기
-    if (lightboxOpen()) {
-      if (e.key === 'Escape') closeLightbox();
-      else if (e.key === 'ArrowLeft') lbNav(-1);
-      else if (e.key === 'ArrowRight') lbNav(1);
-      return;
-    }
     if ($('app').style.display === 'none') return;   // 시작 화면에선 단축키 비활성
     if (e.target.tagName === 'TEXTAREA') { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(); } return; }
     if (e.target.tagName === 'INPUT') return;
+    // 확대 모드: ←/→ 슬라이드 이동, Esc 전체 그리드로. 그리드 모드: ←/→ 디자인 이동
+    if (STATE.viewMode === 'enlarged') {
+      if (e.key === 'Escape') showGrid();
+      else if (e.key === 'ArrowLeft') enlargedNav(-1);
+      else if (e.key === 'ArrowRight') enlargedNav(1);
+      return;
+    }
     if (e.key === 'ArrowLeft') goDesign(-1);
     if (e.key === 'ArrowRight') goDesign(1);
   });
