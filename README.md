@@ -36,8 +36,12 @@ python3 -m http.server 8765
 # 브라우저에서 http://localhost:8765 접속
 ```
 
-> 데이터는 `data/designs.csv.gz`(11MB)를 브라우저가 자동으로 풀어서 로딩합니다.
-> 최신 데이터로 교체하려면: `gzip -c 새데이터.csv > data/designs.csv.gz`
+> 데이터는 두 파일을 브라우저가 자동으로 풀어서 로딩합니다:
+> - `data/designs.csv.gz` — **잘 쓰는 유저**
+> - `data/bad.csv.gz` — **못 쓰는 유저** (`usage_span_days` 컬럼 없음 → 앱에서 '–' 표시)
+>
+> 상단 탭으로 두 그룹을 전환해서 봅니다. 메모(평가)가 있는 디자인은 목록에서 초록색·✅로 구분됩니다.
+> 최신 데이터로 교체하려면: `gzip -c 새데이터.csv > data/designs.csv.gz` (또는 `bad.csv.gz`)
 
 ---
 
