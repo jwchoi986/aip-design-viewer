@@ -282,7 +282,7 @@
 const STATE = {
   rows: [], users: new Map(), sortedUsers: [],
   currentUser: null, workingList: [], cursor: -1, page: 0,
-  allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good',
+  allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good', drafts: {},
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
@@ -503,10 +503,15 @@ function render() {
   $('i-pagecnt').textContent = row.page_cnt;
   $('i-didx').textContent = row.design_idx;
 
-  // 내 이전 메모 불러오기
+  // 메모 로드: 작성 중인 초안이 있으면 그걸 유지, 없으면 저장된 내 메모
   const mine = $('researcher').value.trim();
-  const found = STATE.allNotes.filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx && n.researcher === mine).pop();
-  $('memo').value = found ? found.memo : '';
+  const dkey = draftKey(row, mine);
+  if (Object.prototype.hasOwnProperty.call(STATE.drafts, dkey)) {
+    $('memo').value = STATE.drafts[dkey];
+  } else {
+    const found = STATE.allNotes.filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx && n.researcher === mine).pop();
+    $('memo').value = found ? found.memo : '';
+  }
 }
 
 // ---------- 실시간 메모 피드 ----------
@@ -527,6 +532,15 @@ function refreshFeed() {
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+// ---------- 작성 중 초안 보관 (디자인 이동/페이지 넘김에도 유지) ----------
+function draftKey(row, mine) { return (mine || '') + '||' + row.account_id + '||' + row.design_idx; }
+function saveDraftFromInput() {
+  if (STATE.cursor < 0) return;
+  const row = STATE.rows[STATE.workingList[STATE.cursor]];
+  STATE.drafts[draftKey(row, $('researcher').value.trim())] = $('memo').value;
+  try { localStorage.setItem('aip_drafts', JSON.stringify(STATE.drafts)); } catch (e) {}
+}
+
 // ---------- 저장 ----------
 async function saveMemo() {
   if (STATE.cursor < 0) { showToast('디자인을 먼저 선택하세요.', true); return; }
@@ -540,6 +554,8 @@ async function saveMemo() {
   // 낙관적 반영 (서버 확정 전까지 pending 에 보관 → 폴링해도 사라지지 않음)
   STATE.allNotes.push(note);
   STATE.pending.push(note);
+  STATE.drafts[draftKey(row, $('researcher').value.trim())] = memo;   // 초안=저장본 동기화
+  try { localStorage.setItem('aip_drafts', JSON.stringify(STATE.drafts)); } catch (e) {}
   refreshFeed(); buildUserList();
 
   if (STATE.gsUrl) {
@@ -671,6 +687,8 @@ async function enterViewer() {
 
 // ---------- 초기화 ----------
 function init() {
+  // 작성 중이던 초안 복구 (새로고침에도 유지)
+  try { STATE.drafts = JSON.parse(localStorage.getItem('aip_drafts')) || {}; } catch (e) { STATE.drafts = {}; }
   // 시작 화면 세팅
   buildDatasetButtons();
   $('start-name').value = localStorage.getItem('aip_researcher') || '';
@@ -698,6 +716,7 @@ function init() {
   $('page-prev').onclick = () => goPage(-1);
   $('page-next').onclick = () => goPage(1);
   $('save-memo').onclick = saveMemo;
+  $('memo').oninput = saveDraftFromInput;   // 타이핑할 때마다 초안 보관 → 이동해도 안 사라짐
   $('export-csv').onclick = exportCSV;
   $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
   $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
