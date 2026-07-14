@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Aip 디자인 리서치 뷰어</title>
+<title>Aip 유저 디자인 뷰어</title>
 <style>
   :root {
     --bg: #f4f5f7; --panel: #ffffff; --border: #e3e6ea; --text: #1c2126; --muted: #6b7683;
@@ -68,10 +68,12 @@
   .crumb { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   .crumb b { color: var(--text); }
   .design-title { font-size: 17px; font-weight: 700; margin: 0 0 10px; }
+  .stage-wrap { flex: 1; position: relative; display: flex; min-height: 0; }
   .stage { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; box-shadow: var(--shadow); }
   .stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .stage .empty { color: var(--muted); font-size: 13px; }
-  .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,.92); cursor: pointer; font-size: 20px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+  /* 페이지 화살표는 stage 바깥(stage-wrap 기준)에 위치 → overflow:hidden 에 잘리지 않음 */
+  .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,.92); cursor: pointer; font-size: 20px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); z-index: 5; }
   .nav-btn:hover { background: #fff; } .nav-btn.left { left: 14px; } .nav-btn.right { right: 14px; }
   .page-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; } .dot.active { background: var(--accent); }
@@ -80,8 +82,14 @@
   .btn { padding: 9px 14px; border: 1px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); }
   .btn:hover { background: var(--accent-soft); } .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .btn:disabled { opacity: .45; cursor: not-allowed; }
-  .pos-label { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .pos-slider { flex: 1; } .pos-slider input { width: 100%; }
+  /* 같은 유저 내 디자인 번호 버튼 */
+  .design-nums { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .num-btn { min-width: 36px; height: 36px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .num-btn:hover { background: var(--accent-soft); }
+  .num-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* 평가 완료된 디자인 번호는 초록 테두리로 구분 */
+  .num-btn.evaluated { border-color: var(--good); color: var(--good); }
+  .num-btn.evaluated.active { background: var(--good); color: #fff; }
 
   /* ===== Right ===== */
   .right { background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; }
@@ -117,7 +125,7 @@
   <!-- ===== Left: master list ===== -->
   <aside>
     <div class="aside-head">
-      <h1>Aip 리서치 뷰어</h1>
+      <h1>Aip 유저 디자인 뷰어</h1>
       <div class="field">
         <label>내 이름 (메모 작성자)</label>
         <input id="researcher" placeholder="예: jwchoi" />
@@ -126,7 +134,6 @@
         <div class="field" style="margin-bottom:8px">
           <label>정렬</label>
           <select id="sort-by">
-            <option value="ranking">랭킹순 (1위→)</option>
             <option value="total_dl_cnt">총 다운로드</option>
             <option value="made_design_cnt">제작 수</option>
             <option value="usage_span_days">사용기간</option>
@@ -156,10 +163,12 @@
     <div class="crumb" id="crumb">왼쪽 목록에서 유저 → 디자인을 선택하세요</div>
     <h2 class="design-title" id="d-title">–</h2>
 
-    <div class="stage" id="stage">
+    <div class="stage-wrap">
       <button class="nav-btn left" id="page-prev" title="이전 페이지">‹</button>
-      <img id="d-image" alt="" style="display:none" />
-      <div class="empty" id="stage-empty">디자인을 선택하면 여기에 크게 표시됩니다</div>
+      <div class="stage" id="stage">
+        <img id="d-image" alt="" style="display:none" />
+        <div class="empty" id="stage-empty">디자인을 선택하면 여기에 크게 표시됩니다</div>
+      </div>
       <button class="nav-btn right" id="page-next" title="다음 페이지">›</button>
     </div>
     <div class="page-dots" id="page-dots"></div>
@@ -167,8 +176,7 @@
 
     <div class="design-nav">
       <button class="btn" id="prev-design">‹ 이전</button>
-      <div class="pos-slider"><input type="range" id="pos-range" min="0" max="0" value="0" /></div>
-      <span class="pos-label" id="pos-label">– / –</span>
+      <div class="design-nums" id="design-nums"></div>
       <button class="btn primary" id="next-design">다음 ›</button>
     </div>
     <div class="hint" style="text-align:center;margin-top:6px">
@@ -182,7 +190,6 @@
       <h3>유저 정보</h3>
       <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
       <div class="info-row"><span>그룹</span><b id="i-group">–</b></div>
-      <div class="info-row"><span>순위(Ranking)</span><b id="i-ranking">–</b></div>
       <div class="info-row"><span>총 다운로드</span><b id="i-totaldl">–</b></div>
       <div class="info-row"><span>제작 디자인 수</span><b id="i-made">–</b></div>
       <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
@@ -220,6 +227,7 @@ const STATE = {
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
+const DEFAULT_GS_URL = 'https://script.google.com/a/macros/miridih.com/s/AKfycbzNKqaJefcUJCIZAiBXvmzX_oxZGNNuobj32MtSSdy3luJDVJVEykBCQ7AXU2sknCNa/exec';
 const $ = id => document.getElementById(id);
 
 // ---------- 데이터 로딩 ----------
@@ -290,10 +298,8 @@ function buildUserList() {
   STATE.sortedUsers = [...STATE.users.values()]
     .filter(u => u.group === STATE.currentGroup)
     .filter(u => !q || u.account_id.includes(q))
-    .sort((a, b) => sortBy === 'ranking'
-      ? (a.ranking ?? Infinity) - (b.ranking ?? Infinity)   // 순위는 오름차순(1위 먼저), 없으면 뒤로
-      : (b[sortBy] || 0) - (a[sortBy] || 0));
-  const SORT_LABEL = { ranking: '순위', total_dl_cnt: '총DL', made_design_cnt: '제작', usage_span_days: '사용기간', dl_day_cnt: 'DL일수' };
+    .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+  const SORT_LABEL = { total_dl_cnt: '총DL', made_design_cnt: '제작', usage_span_days: '사용기간', dl_day_cnt: 'DL일수' };
 
   const cnt = memoCountByDesign();
   const wrap = $('user-list');
@@ -301,9 +307,7 @@ function buildUserList() {
   const frag = document.createDocumentFragment();
   STATE.sortedUsers.forEach(u => {
     const memoTotal = u.indices.reduce((s, i) => s + (cnt[STATE.rows[i].design_idx] || 0), 0);
-    let val;
-    if (sortBy === 'ranking') val = u.ranking == null ? '–' : u.ranking + '위';
-    else val = u[sortBy] == null ? '–' : (u[sortBy] || 0).toLocaleString();
+    const val = u[sortBy] == null ? '–' : (u[sortBy] || 0).toLocaleString();
     const row = document.createElement('div');
     row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '') + (memoTotal ? ' has-memo' : '');
     row.innerHTML = `
@@ -355,11 +359,24 @@ function openDesign(key, idx) {
   STATE.workingList = u.indices.slice();
   STATE.cursor = STATE.workingList.indexOf(idx);
   STATE.page = 0;
-  $('pos-range').max = Math.max(0, STATE.workingList.length - 1);
   STATE.openUser = key;
   buildUserList();
   render();
   refreshFeed();
+}
+function renderDesignNums() {
+  const box = $('design-nums');
+  box.innerHTML = '';
+  const cnt = memoCountByDesign();
+  STATE.workingList.forEach((rowIdx, i) => {
+    const evaluated = (cnt[STATE.rows[rowIdx].design_idx] || 0) > 0;
+    const btn = document.createElement('button');
+    btn.className = 'num-btn' + (i === STATE.cursor ? ' active' : '') + (evaluated ? ' evaluated' : '');
+    btn.textContent = i + 1;
+    btn.title = STATE.rows[rowIdx].design_title || '';
+    btn.onclick = () => { STATE.cursor = i; STATE.page = 0; buildUserList(); render(); refreshFeed(); };
+    box.appendChild(btn);
+  });
 }
 function goDesign(delta) {
   if (STATE.cursor < 0) return;
@@ -393,14 +410,12 @@ function render() {
   $('page-label').textContent = pages.length ? `페이지 ${STATE.page + 1} / ${pages.length}` : '이미지 없음';
   $('page-prev').style.display = $('page-next').style.display = pages.length > 1 ? '' : 'none';
 
-  $('pos-range').value = STATE.cursor;
-  $('pos-label').textContent = `${STATE.cursor + 1} / ${STATE.workingList.length}`;
+  renderDesignNums();
   $('prev-design').disabled = STATE.cursor === 0;
   $('next-design').disabled = STATE.cursor === STATE.workingList.length - 1;
 
   $('i-account').textContent = row.account_id;
   $('i-group').textContent = GROUP_LABEL[u.group];
-  $('i-ranking').textContent = u.ranking == null ? '–' : u.ranking + '위';
   $('i-totaldl').textContent = u.total_dl_cnt.toLocaleString();
   $('i-made').textContent = u.made_design_cnt.toLocaleString();
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
@@ -520,7 +535,7 @@ async function init() {
   STATE.users.forEach(u => { if (u.group === 'good') goodN++; else badN++; });
   $('tab-good').textContent = `잘 쓰는 유저 (${goodN.toLocaleString()})`;
   $('tab-bad').textContent = `못 쓰는 유저 (${badN.toLocaleString()})`;
-  STATE.gsUrl = localStorage.getItem('aip_gs_url') || '';
+  STATE.gsUrl = localStorage.getItem('aip_gs_url') || DEFAULT_GS_URL;
   $('gs-url').value = STATE.gsUrl;
   if (!STATE.gsUrl) { try { STATE.allNotes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; } catch (e) { STATE.allNotes = []; } }
 
@@ -542,7 +557,6 @@ async function init() {
   $('next-design').onclick = () => goDesign(1);
   $('page-prev').onclick = () => goPage(-1);
   $('page-next').onclick = () => goPage(1);
-  $('pos-range').oninput = e => { if (STATE.cursor < 0) return; STATE.cursor = +e.target.value; STATE.page = 0; buildUserList(); render(); refreshFeed(); };
   $('save-memo').onclick = saveMemo;
   $('export-csv').onclick = exportCSV;
   $('researcher').oninput = () => { render(); refreshFeed(); };
