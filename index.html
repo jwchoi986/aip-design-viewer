@@ -154,6 +154,9 @@
   .toast { font-size: 12px; color: var(--good); margin-top: 6px; min-height: 15px; }
   .feed { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; max-height: 240px; overflow-y: auto; }
   .tag-user { font-size: 10px; font-weight: 700; background: var(--accent-soft); color: var(--accent); padding: 1px 7px; border-radius: 10px; }
+  .researcher-box { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #f7f8fa; }
+  .researcher-box b { font-size: 13px; }
+  .done-count { font-size: 11px; font-weight: 700; color: var(--good); background: #e7f8ef; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
   .note-item { font-size: 12px; padding: 8px 10px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--accent); }
   .note-item.mine { border-left-color: var(--good); }
   .note-item .m { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; justify-content: space-between; }
@@ -212,8 +215,12 @@
         <button id="change-dataset" class="link-btn" title="데이터셋/설정 다시 선택">⟳ 데이터셋</button>
       </div>
       <div class="field">
-        <label>내 이름 (메모 작성자)</label>
-        <input id="researcher" placeholder="예: jwchoi" />
+        <label>메모 작성자</label>
+        <div class="researcher-box">
+          <b id="researcher-name">–</b>
+          <span class="done-count" id="done-count"></span>
+        </div>
+        <input type="hidden" id="researcher" />
       </div>
       <div class="row2">
         <div class="field" style="margin-bottom:8px">
@@ -439,6 +446,26 @@ function buildUserList() {
   });
   if (!STATE.sortedUsers.length) { const e = document.createElement('div'); e.className = 'empty-feed'; e.style.padding = '16px'; e.textContent = '해당하는 유저가 없습니다.'; frag.appendChild(e); }
   wrap.appendChild(frag);
+  updateResearcherInfo();
+}
+// 이 작성자가 '모든 디자인에 코멘트'한 유저 수 (그룹 무관 전체 집계)
+function countCompletedUsers(mine) {
+  if (!mine) return 0;
+  const done = new Set(
+    STATE.allNotes
+      .filter(n => n.researcher === mine && String(n.design_idx) !== USER_IDX)
+      .map(n => String(n.design_idx))
+  );
+  let count = 0;
+  STATE.users.forEach(u => {
+    if (u.indices.length && u.indices.every(i => done.has(String(STATE.rows[i].design_idx)))) count++;
+  });
+  return count;
+}
+function updateResearcherInfo() {
+  const mine = $('researcher').value.trim();
+  $('researcher-name').textContent = mine || '(이름 없음)';
+  $('done-count').textContent = `평가 완료 ${countCompletedUsers(mine)}명`;
 }
 function buildDesignSub(u, cnt) {
   const box = document.createElement('div');
@@ -828,7 +855,6 @@ function init() {
   $('user-memo').oninput = saveUserDraftFromInput;    // 유저 메모 초안
   $('export-csv').onclick = exportCSV;
   $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
-  $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
 
   document.addEventListener('keydown', e => {
     if ($('app').style.display === 'none') return;   // 시작 화면에선 단축키 비활성
