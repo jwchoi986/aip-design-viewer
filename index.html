@@ -152,7 +152,8 @@
   textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
   .save-row { display: flex; gap: 8px; margin-top: 8px; } .save-row .btn { flex: 1; }
   .toast { font-size: 12px; color: var(--good); margin-top: 6px; min-height: 15px; }
-  .feed { margin-top: 4px; display: flex; flex-direction: column; gap: 7px; }
+  .feed { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; max-height: 240px; overflow-y: auto; }
+  .tag-user { font-size: 10px; font-weight: 700; background: var(--accent-soft); color: var(--accent); padding: 1px 7px; border-radius: 10px; }
   .note-item { font-size: 12px; padding: 8px 10px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--accent); }
   .note-item.mine { border-left-color: var(--good); }
   .note-item .m { color: var(--muted); font-size: 11px; margin-bottom: 3px; display: flex; justify-content: space-between; }
@@ -285,14 +286,18 @@
     </div>
 
     <div class="card">
-      <h3>메모 작성</h3>
+      <h3>유저별 메모 <span class="tag-user">유저 전체</span></h3>
+      <textarea id="user-memo" placeholder="이 유저 전반의 특징·패턴을 메모하세요… (특정 디자인이 아니라 유저 단위로 누적)"></textarea>
+      <div class="save-row"><button class="btn primary" id="save-user-memo">저장</button></div>
+      <div class="toast" id="user-toast"></div>
+      <div class="feed" id="user-feed"></div>
+    </div>
+
+    <div class="card">
+      <h3>디자인 메모 <span id="live-status"></span></h3>
       <textarea id="memo" placeholder="이 디자인의 특징·패턴을 메모하세요…"></textarea>
       <div class="save-row"><button class="btn primary" id="save-memo">저장</button></div>
       <div class="toast" id="save-toast"></div>
-    </div>
-
-    <div class="card" style="flex:1">
-      <h3><span id="feed-title">이 디자인의 메모</span> <span id="live-status"></span></h3>
       <div class="feed" id="feed"></div>
     </div>
 
@@ -314,6 +319,7 @@ const STATE = {
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
+const USER_IDX = '__USER__';   // 유저별 메모의 design_idx 자리표시자
 const DEFAULT_GS_URL = 'https://script.google.com/a/macros/miridih.com/s/AKfycbzNKqaJefcUJCIZAiBXvmzX_oxZGNNuobj32MtSSdy3luJDVJVEykBCQ7AXU2sknCNa/exec';
 const $ = id => document.getElementById(id);
 
@@ -549,6 +555,13 @@ function enlargedNav(delta) {
 }
 
 // ---------- 중앙/우측 렌더 ----------
+function currentRow() { return STATE.cursor < 0 ? null : STATE.rows[STATE.workingList[STATE.cursor]]; }
+function loadMemoInto(taId, accountId, designIdx, mine) {
+  const dkey = draftKeyOf(accountId, designIdx, mine);
+  if (Object.prototype.hasOwnProperty.call(STATE.drafts, dkey)) { $(taId).value = STATE.drafts[dkey]; return; }
+  const found = STATE.allNotes.filter(n => n.account_id === accountId && String(n.design_idx) === String(designIdx) && n.researcher === mine).pop();
+  $(taId).value = found ? found.memo : '';
+}
 function render() {
   if (STATE.cursor < 0) return;
   const row = STATE.rows[STATE.workingList[STATE.cursor]];
@@ -574,27 +587,26 @@ function render() {
   $('i-pagecnt').textContent = row.page_cnt;
   $('i-didx').textContent = row.design_idx;
 
-  // 메모 로드: 작성 중인 초안이 있으면 그걸 유지, 없으면 저장된 내 메모
+  // 메모 로드: 작성 중인 초안 우선, 없으면 저장된 내 메모 (디자인/유저 각각)
   const mine = $('researcher').value.trim();
-  const dkey = draftKey(row, mine);
-  if (Object.prototype.hasOwnProperty.call(STATE.drafts, dkey)) {
-    $('memo').value = STATE.drafts[dkey];
-  } else {
-    const found = STATE.allNotes.filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx && n.researcher === mine).pop();
-    $('memo').value = found ? found.memo : '';
-  }
+  loadMemoInto('memo', row.account_id, row.design_idx, mine);
+  loadMemoInto('user-memo', row.account_id, USER_IDX, mine);
 }
 
-// ---------- 실시간 메모 피드 ----------
+// ---------- 실시간 메모 피드 (디자인 + 유저 각각) ----------
 function refreshFeed() {
-  if (STATE.cursor < 0) { $('feed').innerHTML = '<div class="empty-feed">디자인을 선택하세요.</div>'; return; }
-  const row = STATE.rows[STATE.workingList[STATE.cursor]];
+  const row = currentRow();
+  renderFeedInto('feed', row, row ? row.design_idx : null, '아직 메모가 없습니다. 첫 메모를 남겨보세요.');
+  renderFeedInto('user-feed', row, USER_IDX, '아직 유저 메모가 없습니다.');
+}
+function renderFeedInto(feedId, row, designIdx, emptyMsg) {
+  const feed = $(feedId);
+  if (!row) { feed.innerHTML = '<div class="empty-feed">디자인을 선택하세요.</div>'; return; }
   const mine = $('researcher').value.trim();
   const list = STATE.allNotes
-    .filter(n => n.account_id === row.account_id && n.design_idx === row.design_idx)
+    .filter(n => n.account_id === row.account_id && String(n.design_idx) === String(designIdx))
     .sort((a, b) => (a.ts < b.ts ? 1 : -1));
-  const feed = $('feed');
-  if (!list.length) { feed.innerHTML = '<div class="empty-feed">아직 메모가 없습니다. 첫 메모를 남겨보세요.</div>'; return; }
+  if (!list.length) { feed.innerHTML = `<div class="empty-feed">${emptyMsg}</div>`; return; }
   feed.innerHTML = list.map(n => `
     <div class="note-item ${n.researcher === mine ? 'mine' : ''}">
       <div class="m"><span class="who">${escapeHtml(n.researcher || '익명')}</span><span>${escapeHtml(n.ts)}</span></div>
@@ -604,41 +616,50 @@ function refreshFeed() {
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // ---------- 작성 중 초안 보관 (디자인 이동/페이지 넘김에도 유지) ----------
-function draftKey(row, mine) { return (mine || '') + '||' + row.account_id + '||' + row.design_idx; }
+function draftKeyOf(accountId, designIdx, mine) { return (mine || '') + '||' + accountId + '||' + designIdx; }
+function persistDrafts() { try { localStorage.setItem('aip_drafts', JSON.stringify(STATE.drafts)); } catch (e) {} }
 function saveDraftFromInput() {
-  if (STATE.cursor < 0) return;
-  const row = STATE.rows[STATE.workingList[STATE.cursor]];
-  STATE.drafts[draftKey(row, $('researcher').value.trim())] = $('memo').value;
-  try { localStorage.setItem('aip_drafts', JSON.stringify(STATE.drafts)); } catch (e) {}
+  const row = currentRow(); if (!row) return;
+  STATE.drafts[draftKeyOf(row.account_id, row.design_idx, $('researcher').value.trim())] = $('memo').value;
+  persistDrafts();
+}
+function saveUserDraftFromInput() {
+  const row = currentRow(); if (!row) return;
+  STATE.drafts[draftKeyOf(row.account_id, USER_IDX, $('researcher').value.trim())] = $('user-memo').value;
+  persistDrafts();
 }
 
-// ---------- 저장 ----------
-async function saveMemo() {
-  if (STATE.cursor < 0) { showToast('디자인을 먼저 선택하세요.', true); return; }
-  const row = STATE.rows[STATE.workingList[STATE.cursor]];
-  const memo = $('memo').value.trim();
+// ---------- 저장 (kind: 'design' | 'user') ----------
+async function saveNote(kind) {
+  const toastEl = kind === 'user' ? 'user-toast' : 'save-toast';
+  const row = currentRow();
+  if (!row) { showToast('먼저 유저·디자인을 선택하세요.', true, toastEl); return; }
+  const taId = kind === 'user' ? 'user-memo' : 'memo';
+  const memo = $(taId).value.trim();
   const researcher = $('researcher').value.trim() || '익명';
-  if (!memo) { showToast('메모가 비어 있습니다.', true); return; }
+  if (!memo) { showToast('메모가 비어 있습니다.', true, toastEl); return; }
+  const design_idx = kind === 'user' ? USER_IDX : row.design_idx;
+  const design_title = kind === 'user' ? '(유저 전체)' : row.design_title;
   const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  const note = { researcher, account_id: row.account_id, design_idx: row.design_idx, design_title: row.design_title, memo, ts };
+  const note = { researcher, account_id: row.account_id, design_idx, design_title, memo, ts };
 
   // 낙관적 반영 (서버 확정 전까지 pending 에 보관 → 폴링해도 사라지지 않음)
   STATE.allNotes.push(note);
   STATE.pending.push(note);
-  STATE.drafts[draftKey(row, $('researcher').value.trim())] = memo;   // 초안=저장본 동기화
-  try { localStorage.setItem('aip_drafts', JSON.stringify(STATE.drafts)); } catch (e) {}
+  STATE.drafts[draftKeyOf(row.account_id, design_idx, $('researcher').value.trim())] = memo;   // 초안=저장본 동기화
+  persistDrafts();
   refreshFeed(); buildUserList();
 
   if (STATE.gsUrl) {
     try {
       // credentials:'include' → 회사(Workspace) 로그인 쿠키를 함께 전송해야 쓰기가 허용됨
       await fetch(STATE.gsUrl, { method: 'POST', mode: 'no-cors', credentials: 'include', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(note) });
-      showToast('저장 전송됨 · 시트 반영 확인 중…');
+      showToast('저장 전송됨 · 시트 반영 확인 중…', false, toastEl);
       setTimeout(pollNotes, 1500);   // 서버 확정본 재동기화
       setTimeout(pollNotes, 4000);   // 반영 지연 대비 한 번 더
-    } catch (e) { showToast('전송 실패 (임시 보관)', true); }
+    } catch (e) { showToast('전송 실패 (임시 보관)', true, toastEl); }
   } else {
-    saveLocal(); showToast('저장됨 (이 브라우저)');
+    saveLocal(); showToast('저장됨 (이 브라우저)', false, toastEl);
   }
 }
 function sameNote(a, b) {
@@ -646,7 +667,7 @@ function sameNote(a, b) {
       && a.researcher === b.researcher && a.memo === b.memo;
 }
 function saveLocal() { localStorage.setItem(NOTES_KEY, JSON.stringify(STATE.allNotes)); }
-function showToast(msg, warn) { const t = $('save-toast'); t.textContent = msg; t.style.color = warn ? 'var(--warn)' : 'var(--good)'; setTimeout(() => { if (t.textContent === msg) t.textContent = ''; }, 3000); }
+function showToast(msg, warn, elId) { const t = $(elId || 'save-toast'); t.textContent = msg; t.style.color = warn ? 'var(--warn)' : 'var(--good)'; setTimeout(() => { if (t.textContent === msg) t.textContent = ''; }, 3000); }
 
 // ---------- 폴링 (JSONP로 CORS 우회) ----------
 let jsonpN = 0;
@@ -792,15 +813,17 @@ function init() {
   $('back-grid').onclick = showGrid;   // 확대 → 전체 그리드로
   $('slide-prev').onclick = () => enlargedNav(-1);
   $('slide-next').onclick = () => enlargedNav(1);
-  $('save-memo').onclick = saveMemo;
-  $('memo').oninput = saveDraftFromInput;   // 타이핑할 때마다 초안 보관 → 이동해도 안 사라짐
+  $('save-memo').onclick = () => saveNote('design');
+  $('save-user-memo').onclick = () => saveNote('user');
+  $('memo').oninput = saveDraftFromInput;             // 디자인 메모 초안
+  $('user-memo').oninput = saveUserDraftFromInput;    // 유저 메모 초안
   $('export-csv').onclick = exportCSV;
   $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
   $('researcher').oninput = () => { localStorage.setItem('aip_researcher', $('researcher').value.trim()); render(); refreshFeed(); };
 
   document.addEventListener('keydown', e => {
     if ($('app').style.display === 'none') return;   // 시작 화면에선 단축키 비활성
-    if (e.target.tagName === 'TEXTAREA') { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(); } return; }
+    if (e.target.tagName === 'TEXTAREA') { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveNote(e.target.id === 'user-memo' ? 'user' : 'design'); } return; }
     if (e.target.tagName === 'INPUT') return;
     // 확대 모드: ←/→ 슬라이드 이동, Esc 전체 그리드로. 그리드 모드: ←/→ 디자인 이동
     if (STATE.viewMode === 'enlarged') {
