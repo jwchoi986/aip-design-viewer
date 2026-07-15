@@ -134,7 +134,16 @@
   .num-btn.evaluated.active { background: var(--good); color: #fff; }
 
   /* ===== Right ===== */
-  .right { background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; }
+  .right { position: relative; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .right-content { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 16px 22px; display: flex; flex-direction: column; }
+  /* 접기/펼치기 토글 (패널 왼쪽 가장자리에 항상 표시) */
+  .right-toggle { position: absolute; top: 14px; left: -13px; z-index: 6; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 14px; color: var(--muted); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+  .right-toggle:hover { color: var(--accent); border-color: var(--accent); }
+  /* 접힌 상태: 오른쪽 컬럼 폭 축소 + 내용 숨김 */
+  #app.right-collapsed { grid-template-columns: 340px 1fr 0px; }
+  #app.right-collapsed .right { border-left: none; }
+  #app.right-collapsed .right-content { display: none; }
+  #app.right-collapsed .right-toggle { left: -30px; }
   .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
   .card h3 { font-size: 12px; margin: 0 0 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; align-items: center; }
   .info-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px dashed var(--border); }
@@ -261,6 +270,8 @@
 
   <!-- ===== Right ===== -->
   <div class="right">
+    <button class="right-toggle" id="right-toggle" title="패널 접기/펼치기">»</button>
+    <div class="right-content" id="right-content">
     <div class="card">
       <h3>유저 정보</h3>
       <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
@@ -287,6 +298,7 @@
 
     <div class="toolbar">
       <button class="btn" id="export-csv">research_notes.csv 내보내기</button>
+    </div>
     </div>
   </div>
 </div>
@@ -772,6 +784,11 @@ function init() {
   });
   $('prev-design').onclick = () => goDesign(-1);
   $('next-design').onclick = () => goDesign(1);
+  $('right-toggle').onclick = () => {
+    const collapsed = $('app').classList.toggle('right-collapsed');
+    $('right-toggle').textContent = collapsed ? '«' : '»';
+    $('right-toggle').title = collapsed ? '패널 펼치기' : '패널 접기';
+  };
   $('back-grid').onclick = showGrid;   // 확대 → 전체 그리드로
   $('slide-prev').onclick = () => enlargedNav(-1);
   $('slide-next').onclick = () => enlargedNav(1);
