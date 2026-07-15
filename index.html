@@ -609,11 +609,19 @@ function renderFeedInto(feedId, row, designIdx, emptyMsg) {
   if (!list.length) { feed.innerHTML = `<div class="empty-feed">${emptyMsg}</div>`; return; }
   feed.innerHTML = list.map(n => `
     <div class="note-item ${n.researcher === mine ? 'mine' : ''}">
-      <div class="m"><span class="who">${escapeHtml(n.researcher || '익명')}</span><span>${escapeHtml(n.ts)}</span></div>
+      <div class="m"><span class="who">${escapeHtml(n.researcher || '익명')}</span><span>${escapeHtml(formatTs(n.ts))}</span></div>
       ${escapeHtml(n.memo)}
     </div>`).join('');
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// 시각을 'YY.MM.DD HH:mm' 로 간략 표시 (긴 Date 문자열/ISO 모두 처리)
+function formatTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${String(d.getFullYear()).slice(2)}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 // ---------- 작성 중 초안 보관 (디자인 이동/페이지 넘김에도 유지) ----------
 function draftKeyOf(accountId, designIdx, mine) { return (mine || '') + '||' + accountId + '||' + designIdx; }
@@ -640,7 +648,8 @@ async function saveNote(kind) {
   if (!memo) { showToast('메모가 비어 있습니다.', true, toastEl); return; }
   const design_idx = kind === 'user' ? USER_IDX : row.design_idx;
   const design_title = kind === 'user' ? '(유저 전체)' : row.design_title;
-  const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const now = new Date(); const p = n => String(n).padStart(2, '0');
+  const ts = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
   const note = { researcher, account_id: row.account_id, design_idx, design_title, memo, ts };
 
   // 낙관적 반영 (서버 확정 전까지 pending 에 보관 → 폴링해도 사라지지 않음)
