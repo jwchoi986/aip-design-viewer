@@ -493,15 +493,25 @@ function toggleUser(key) {
   buildUserList();
 }
 
+// 좌측 목록에서 현재 디자인 하이라이트만 갱신 (전체 재렌더 대신 → 클릭 반응 빠름)
+function markActiveDesign() {
+  const activeIdx = STATE.workingList[STATE.cursor];
+  document.querySelectorAll('#user-list .design-row').forEach(el => {
+    el.classList.toggle('active', +el.dataset.idx === activeIdx);
+  });
+}
+
 // ---------- 디자인 열기 ----------
 function openDesign(key, idx) {
   const u = STATE.users.get(key);
+  const wasOpen = STATE.openUser === key;
   STATE.currentUser = key;
   STATE.workingList = u.indices.slice();
   STATE.cursor = STATE.workingList.indexOf(idx);
   STATE.page = 0;
   STATE.openUser = key;
-  buildUserList();
+  if (wasOpen) markActiveDesign();   // 이미 펼쳐진 유저면 하이라이트만
+  else buildUserList();              // 새 유저면 펼치며 재구성 (1회)
   render();
   refreshFeed();
 }
@@ -515,14 +525,14 @@ function renderDesignNums() {
     btn.className = 'num-btn' + (i === STATE.cursor ? ' active' : '') + (evaluated ? ' evaluated' : '');
     btn.textContent = i + 1;
     btn.title = STATE.rows[rowIdx].design_title || '';
-    btn.onclick = () => { STATE.cursor = i; STATE.page = 0; buildUserList(); render(); refreshFeed(); };
+    btn.onclick = () => { STATE.cursor = i; STATE.page = 0; markActiveDesign(); render(); refreshFeed(); };
     box.appendChild(btn);
   });
 }
 function goDesign(delta) {
   if (STATE.cursor < 0) return;
   STATE.cursor = Math.min(Math.max(0, STATE.cursor + delta), STATE.workingList.length - 1);
-  STATE.page = 0; buildUserList(); render(); refreshFeed();
+  STATE.page = 0; markActiveDesign(); render(); refreshFeed();
 }
 // ---------- 슬라이드 그리드 (모든 슬라이드 한번에) ----------
 function renderSlides(pages) {
@@ -727,8 +737,14 @@ async function pollNotes() {
       const server = data.notes;
       // 서버에 이미 반영된 pending 메모는 제거, 아직 안 온 것은 유지 → "떴다 사라짐" 방지
       STATE.pending = STATE.pending.filter(p => !server.some(s => sameNote(s, p)));
-      STATE.allNotes = server.concat(STATE.pending);
+      const newAll = server.concat(STATE.pending);
       $('live-status').innerHTML = '<span class="live-dot"></span>실시간';
+      // 변화가 없으면 무거운 재렌더 생략 (매 6초 렉 방지)
+      const last = newAll[newAll.length - 1] || {};
+      const sig = newAll.length + '|' + (last.ts || '') + (last.memo || '');
+      if (sig === STATE._notesSig) return;
+      STATE._notesSig = sig;
+      STATE.allNotes = newAll;
       refreshFeed(); buildUserList();
     }
   } catch (e) {
