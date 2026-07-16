@@ -154,6 +154,13 @@
   .toast { font-size: 12px; color: var(--good); margin-top: 6px; min-height: 15px; }
   .feed { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; max-height: 240px; overflow-y: auto; }
   .tag-user { font-size: 10px; font-weight: 700; background: var(--accent-soft); color: var(--accent); padding: 1px 7px; border-radius: 10px; }
+  .seg-hint { font-weight: 400; color: var(--muted); font-size: 10px; }
+  .seg-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .seg-chip { padding: 3px 9px; border: 1px solid var(--border); border-radius: 14px; background: #fff; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--muted); }
+  .seg-chip:hover { border-color: var(--accent); }
+  .seg-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seg-chip.seg-all { background: #eef1f5; color: var(--text); }
+  .seg-chip.seg-all.on { background: var(--text); color: #fff; border-color: var(--text); }
   .researcher-box { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #f7f8fa; }
   .researcher-box b { font-size: 13px; }
   .done-count { font-size: 11px; font-weight: 700; color: var(--good); background: #e7f8ef; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
@@ -237,6 +244,10 @@
           <input id="search" placeholder="account_id" />
         </div>
       </div>
+      <div class="field seg-filter" id="seg-filter" style="display:none;margin-bottom:2px">
+        <label>세그먼트 필터 <span class="seg-hint">(클릭해 다중 선택 · 전체 토글)</span></label>
+        <div class="seg-chips" id="seg-chips"></div>
+      </div>
     </div>
     <div class="group-tabs">
       <button class="group-tab active" data-group="good" id="tab-good">잘 쓰는 유저</button>
@@ -284,6 +295,7 @@
       <h3>유저 정보</h3>
       <div class="info-row"><span>account_id</span><b id="i-account">–</b></div>
       <div class="info-row"><span>그룹</span><b id="i-group">–</b></div>
+      <div class="info-row"><span>세그먼트</span><b id="i-segment">–</b></div>
       <div class="info-row"><span>총 다운로드</span><b id="i-totaldl">–</b></div>
       <div class="info-row"><span>제작 디자인 수</span><b id="i-made">–</b></div>
       <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
@@ -323,6 +335,7 @@ const STATE = {
   rows: [], users: new Map(), sortedUsers: [],
   currentUser: null, workingList: [], cursor: -1, page: 0,
   allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good', drafts: {},
+  segments: [], activeSegments: null,
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
@@ -395,6 +408,7 @@ function buildUserIndex() {
     const key = row._group + '|' + row.account_id;
     if (!STATE.users.has(key)) STATE.users.set(key, {
       key, account_id: row.account_id, group: row._group,
+      segment: cleanVal(row.user_type),   // 세그먼트 (user_type)
       ranking: row.Ranking !== undefined && row.Ranking !== '' ? (+row.Ranking || null) : null,
       total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
       usage_span_days: row.usage_span_days !== undefined && row.usage_span_days !== '' ? (+row.usage_span_days || 0) : null,
@@ -406,6 +420,45 @@ function buildUserIndex() {
 function currentPages(row) { return PAGE_COLS.map(c => row[c]).filter(v => v && v !== 'null' && v.startsWith('http')); }
 function userKeyOf(row) { return row._group + '|' + row.account_id; }
 const GROUP_LABEL = { good: '잘 쓰는 유저', bad: '못 쓰는 유저' };
+const SEG_NONE = '미분류';
+function cleanVal(v) { if (v == null) return ''; const s = String(v).trim(); return (s === '' || s.toLowerCase() === 'null') ? '' : s; }
+function segOf(u) { return u.segment || SEG_NONE; }
+
+// ---------- 세그먼트(user_type) 필터 ----------
+function buildSegmentFilter() {
+  const set = new Set();
+  STATE.users.forEach(u => set.add(segOf(u)));
+  // '미분류'만 있으면(=데이터에 user_type 없음) 필터 숨김
+  const hasReal = [...set].some(s => s !== SEG_NONE);
+  STATE.segments = [...set].sort((a, b) => a === SEG_NONE ? 1 : b === SEG_NONE ? -1 : a.localeCompare(b, 'ko'));
+  STATE.activeSegments = new Set(STATE.segments);   // 기본 전체 선택
+  $('seg-filter').style.display = hasReal ? '' : 'none';
+  if (hasReal) buildSegChips();
+}
+function buildSegChips() {
+  const box = $('seg-chips');
+  box.innerHTML = '';
+  const allOn = STATE.activeSegments.size === STATE.segments.length;
+  const allChip = document.createElement('button');
+  allChip.className = 'seg-chip seg-all' + (allOn ? ' on' : '');
+  allChip.textContent = '전체';
+  allChip.onclick = () => {
+    STATE.activeSegments = allOn ? new Set() : new Set(STATE.segments);
+    buildSegChips(); buildUserList();
+  };
+  box.appendChild(allChip);
+  STATE.segments.forEach(seg => {
+    const chip = document.createElement('button');
+    chip.className = 'seg-chip' + (STATE.activeSegments.has(seg) ? ' on' : '');
+    chip.textContent = seg;
+    chip.onclick = () => {
+      if (STATE.activeSegments.has(seg)) STATE.activeSegments.delete(seg);
+      else STATE.activeSegments.add(seg);
+      buildSegChips(); buildUserList();
+    };
+    box.appendChild(chip);
+  });
+}
 
 // ---------- 좌측 유저 리스트 ----------
 function memoCountByDesign() {
@@ -416,6 +469,7 @@ function buildUserList() {
   const q = $('search').value.trim();
   STATE.sortedUsers = [...STATE.users.values()]
     .filter(u => u.group === STATE.currentGroup)
+    .filter(u => !STATE.activeSegments || STATE.activeSegments.has(segOf(u)))
     .filter(u => !q || u.account_id.includes(q))
     .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
 
@@ -617,6 +671,7 @@ function render() {
 
   $('i-account').textContent = row.account_id;
   $('i-group').textContent = GROUP_LABEL[u.group];
+  $('i-segment').textContent = u.segment || '–';
   $('i-totaldl').textContent = u.total_dl_cnt.toLocaleString();
   $('i-made').textContent = u.made_design_cnt.toLocaleString();
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
@@ -821,6 +876,7 @@ async function enterViewer() {
   document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t.dataset.group === STATE.currentGroup));
   if (!STATE.gsUrl) { try { STATE.allNotes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; } catch (e) { STATE.allNotes = []; } }
 
+  buildSegmentFilter();
   buildUserList();
   $('start').style.display = 'none';
   $('app').style.display = 'grid';
