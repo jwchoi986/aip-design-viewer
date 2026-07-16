@@ -335,7 +335,7 @@ const STATE = {
   rows: [], users: new Map(), sortedUsers: [],
   currentUser: null, workingList: [], cursor: -1, page: 0,
   allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good', drafts: {},
-  segments: [], activeSegments: null,
+  segments: [], activeSegments: null, segMap: null,
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
@@ -361,6 +361,7 @@ async function loadDatasetFromPaths(goodPath, badPath) {
     catch (e) { console.warn('못 쓰는 유저 파일 로딩 실패 — 잘 쓰는 유저만 표시', e); }
   }
   STATE.rows = good.concat(bad);
+  await ensureSegMap();
   buildUserIndex();
 }
 // 유저가 직접 올린 파일로 로딩
@@ -370,7 +371,18 @@ async function loadDatasetFromFiles(goodFile, badFile) {
   if (goodFile) { good = parseCSV(await fileToText(goodFile)); good.forEach(r => r._group = 'good'); }
   if (badFile) { bad = parseCSV(await fileToText(badFile)); bad.forEach(r => r._group = 'bad'); }
   STATE.rows = good.concat(bad);
+  await ensureSegMap();
   buildUserIndex();
+}
+// account_id → user_type(세그먼트) 매핑 로드 (1회 캐시)
+async function ensureSegMap() {
+  if (STATE.segMap) return;
+  STATE.segMap = new Map();
+  try {
+    $('start-msg').textContent = '세그먼트 정보 불러오는 중…';
+    const rows = await fetchCsvFromPath('data/user-segments.csv.gz');
+    rows.forEach(r => { if (r.account_id) STATE.segMap.set(String(r.account_id).trim(), cleanVal(r.user_type)); });
+  } catch (e) { console.warn('세그먼트 조회 파일 로딩 실패', e); }
 }
 async function fetchCsvFromPath(path) {
   const res = await fetch(path);
@@ -408,7 +420,7 @@ function buildUserIndex() {
     const key = row._group + '|' + row.account_id;
     if (!STATE.users.has(key)) STATE.users.set(key, {
       key, account_id: row.account_id, group: row._group,
-      segment: cleanVal(row.user_type),   // 세그먼트 (user_type)
+      segment: (STATE.segMap && STATE.segMap.get(String(row.account_id).trim())) || cleanVal(row.user_type),   // 세그먼트 (조회맵 우선, 없으면 행의 user_type)
       ranking: row.Ranking !== undefined && row.Ranking !== '' ? (+row.Ranking || null) : null,
       total_dl_cnt: +row.total_dl_cnt || 0, made_design_cnt: +row.made_design_cnt || 0,
       usage_span_days: row.usage_span_days !== undefined && row.usage_span_days !== '' ? (+row.usage_span_days || 0) : null,
