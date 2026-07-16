@@ -117,7 +117,14 @@
   .strip-thumb.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
   .strip-thumb span { position: absolute; bottom: 1px; right: 2px; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,.6); padding: 0 4px; border-radius: 6px; }
   .slide-big { flex: 1; min-height: 0; display: flex; align-items: center; gap: 12px; }
-  .slide-big img { flex: 1; min-width: 0; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  /* 유저 디자인 vs 원본 비교 */
+  .cmp-wrap { flex: 1; min-width: 0; height: 100%; display: flex; gap: 14px; }
+  .cmp-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .cmp-label { flex: 0 0 auto; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  #cmp-orig-pane .cmp-label { color: var(--accent); }
+  .cmp-img { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .cmp-img img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  .cmp-img.empty::after { content: '매칭된 원본 없음'; color: var(--muted); font-size: 12px; }
   .slide-nav-btn { flex: 0 0 46px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 24px; color: var(--text); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
   .slide-nav-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .design-nav { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
@@ -275,7 +282,10 @@
         </div>
         <div class="slide-big">
           <button class="slide-nav-btn" id="slide-prev" title="이전 슬라이드">‹</button>
-          <img id="slide-big-img" alt="" />
+          <div class="cmp-wrap">
+            <div class="cmp-pane"><div class="cmp-label">유저 디자인</div><div class="cmp-img"><img id="slide-big-img" alt="" /></div></div>
+            <div class="cmp-pane" id="cmp-orig-pane"><div class="cmp-label">원본 디자인</div><div class="cmp-img"><img id="orig-big-img" alt="" /></div></div>
+          </div>
           <button class="slide-nav-btn" id="slide-next" title="다음 슬라이드">›</button>
         </div>
       </div>
@@ -307,6 +317,7 @@
       <div class="info-row"><span>다운로드한 날 수</span><b id="i-dlday">–</b></div>
       <div class="info-row"><span>사용 기간(일)</span><b id="i-span">–</b></div>
       <div class="info-row"><span>이 디자인 페이지 수</span><b id="i-pagecnt">–</b></div>
+      <div class="info-row"><span>원본 매칭 페이지</span><b id="i-matched">–</b></div>
       <div class="info-row"><span>design_idx</span><b id="i-didx">–</b></div>
     </div>
 
@@ -341,7 +352,7 @@ const STATE = {
   rows: [], users: new Map(), sortedUsers: [],
   currentUser: null, workingList: [], cursor: -1, page: 0,
   allNotes: [], pending: [], gsUrl: '', openUser: null, currentGroup: 'good', drafts: {},
-  segments: [], activeSegments: null, segMap: null,
+  segments: [], activeSegments: null, segMap: null, originals: null, curOrig: null,
 };
 const PAGE_COLS = Array.from({length: 30}, (_, i) => `page_${i+1}`);
 const NOTES_KEY = 'aip_research_notes_v1';
@@ -368,6 +379,7 @@ async function loadDatasetFromPaths(goodPath, badPath) {
   }
   STATE.rows = good.concat(bad);
   await ensureSegMap();
+  await ensureOriginals();
   buildUserIndex();
 }
 // 유저가 직접 올린 파일로 로딩
@@ -378,6 +390,7 @@ async function loadDatasetFromFiles(goodFile, badFile) {
   if (badFile) { bad = parseCSV(await fileToText(badFile)); bad.forEach(r => r._group = 'bad'); }
   STATE.rows = good.concat(bad);
   await ensureSegMap();
+  await ensureOriginals();
   buildUserIndex();
 }
 // account_id → user_type(세그먼트) 매핑 로드 (1회 캐시)
@@ -389,6 +402,20 @@ async function ensureSegMap() {
     const rows = await fetchCsvFromPath('data/user-segments.csv.gz');
     rows.forEach(r => { if (r.account_id) STATE.segMap.set(String(r.account_id).trim(), cleanVal(r.user_type)); });
   } catch (e) { console.warn('세그먼트 조회 파일 로딩 실패', e); }
+}
+// design_idx → 원본 디자인(대표 썸네일) 매핑 로드 (1회 캐시)
+async function ensureOriginals() {
+  if (STATE.originals) return;
+  STATE.originals = new Map();
+  try {
+    $('start-msg').textContent = '원본 디자인 정보 불러오는 중…';
+    const rows = await fetchCsvFromPath('data/originals.csv.gz');
+    rows.forEach(r => {
+      const id = String(r.design_idx || '').trim();
+      const url = cleanVal(r.orig_url);
+      if (id) STATE.originals.set(id, { matched: +r.matched_cnt || 0, url });
+    });
+  } catch (e) { console.warn('원본 조회 파일 로딩 실패', e); }
 }
 async function fetchCsvFromPath(path) {
   const res = await fetch(path);
@@ -655,6 +682,18 @@ function renderEnlarged() {
     strip.appendChild(t);
   });
   $('slide-big-img').src = pages[STATE.page];
+  // 원본 디자인 비교 pane
+  const origUrl = STATE.curOrig && STATE.curOrig.url;
+  const origPane = $('cmp-orig-pane'), origImg = $('orig-big-img'), origBox = origImg.parentElement;
+  if (origUrl) {
+    origPane.style.display = '';
+    origImg.style.display = ''; origBox.classList.remove('empty');
+    origImg.src = origUrl;
+  } else {
+    // 원본이 있는 데이터셋이면 pane은 두되 "매칭 없음" 표시, 아예 원본 정보가 없으면 pane 숨김
+    if (STATE.originals) { origPane.style.display = ''; origImg.style.display = 'none'; origBox.classList.add('empty'); }
+    else origPane.style.display = 'none';
+  }
   $('slide-prev').style.display = $('slide-next').style.display = pages.length > 1 ? '' : 'none';
   $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · ‹ › 또는 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
   const act = strip.querySelector('.strip-thumb.active');
@@ -681,6 +720,7 @@ function render() {
   const u = STATE.users.get(userKeyOf(row));
   const pages = currentPages(row);
   STATE.currentPages = pages;
+  STATE.curOrig = (STATE.originals && STATE.originals.get(String(row.design_idx))) || null;
 
   $('d-title').textContent = row.design_title || '(제목 없음)';
 
@@ -699,6 +739,7 @@ function render() {
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
   $('i-span').textContent = u.usage_span_days === null ? '–' : u.usage_span_days.toLocaleString();
   $('i-pagecnt').textContent = row.page_cnt;
+  $('i-matched').textContent = STATE.curOrig && STATE.curOrig.url ? `${STATE.curOrig.matched}페이지` : '원본 없음';
   $('i-didx').textContent = row.design_idx;
 
   // 메모 로드: 작성 중인 초안 우선, 없으면 저장된 내 메모 (디자인/유저 각각)
