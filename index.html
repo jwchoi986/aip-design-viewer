@@ -238,7 +238,6 @@
         <label>메모 작성자</label>
         <div class="researcher-box">
           <b id="researcher-name">–</b>
-          <span class="done-count" id="done-count"></span>
         </div>
         <input type="hidden" id="researcher" />
       </div>
@@ -328,10 +327,6 @@
       <div class="save-row"><button class="btn primary" id="save-memo">저장</button></div>
       <div class="toast" id="save-toast"></div>
       <div class="feed" id="feed"></div>
-    </div>
-
-    <div class="toolbar">
-      <button class="btn" id="export-csv">research_notes.csv 내보내기</button>
     </div>
     </div>
   </div>
@@ -538,17 +533,20 @@ function buildUserList() {
     .sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
 
   const cnt = memoCountByDesign();
+  // 유저별 메모가 있는 account_id 집합 (유저 메모만 있어도 '진행중')
+  const userMemoAccts = new Set(STATE.allNotes.filter(n => String(n.design_idx) === USER_IDX).map(n => String(n.account_id)));
   const wrap = $('user-list');
   wrap.innerHTML = '';
   const frag = document.createDocumentFragment();
   STATE.sortedUsers.forEach(u => {
-    // 코멘트가 달린 디자인 수 계산 → 전부면 '완료', 일부면 '진행중'
+    // 코멘트가 달린 디자인 수 계산 → 전부면 '완료', 일부(또는 유저메모)면 '진행중'
     const total = u.indices.length;
     let commented = 0;
     u.indices.forEach(i => { if ((cnt[STATE.rows[i].design_idx] || 0) > 0) commented++; });
+    const hasUserMemo = userMemoAccts.has(String(u.account_id));
     let statusBadge = '';
     if (total > 0 && commented === total) statusBadge = '<span class="badge done">완료</span>';
-    else if (commented > 0) statusBadge = '<span class="badge doing">진행중</span>';
+    else if (commented > 0 || hasUserMemo) statusBadge = '<span class="badge doing">진행중</span>';
     const row = document.createElement('div');
     row.className = 'user-row' + (STATE.openUser === u.key ? ' open' : '');
     row.innerHTML = `
@@ -583,7 +581,6 @@ function countCompletedUsers(mine) {
 function updateResearcherInfo() {
   const mine = $('researcher').value.trim();
   $('researcher-name').textContent = mine || '(이름 없음)';
-  $('done-count').textContent = `평가 완료 ${countCompletedUsers(mine)}명`;
 }
 function buildDesignSub(u, cnt) {
   const box = document.createElement('div');
@@ -984,7 +981,6 @@ function init() {
   $('save-user-memo').onclick = () => saveNote('user');
   $('memo').oninput = saveDraftFromInput;             // 디자인 메모 초안
   $('user-memo').oninput = saveUserDraftFromInput;    // 유저 메모 초안
-  $('export-csv').onclick = exportCSV;
   $('change-dataset').onclick = () => { $('app').style.display = 'none'; $('start').style.display = 'flex'; $('start-msg').textContent = ''; };
 
   document.addEventListener('keydown', e => {
