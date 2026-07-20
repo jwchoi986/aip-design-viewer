@@ -399,7 +399,7 @@ async function ensureSegMap() {
   STATE.segMap = new Map();
   try {
     $('start-msg').textContent = '세그먼트 정보 불러오는 중…';
-    const rows = await fetchCsvFromPath('data/user-segments.csv.gz');
+    const rows = await fetchLookup('data/user-segments.csv.gz');
     rows.forEach(r => { if (r.account_id) STATE.segMap.set(String(r.account_id).trim(), cleanVal(r.user_type)); });
   } catch (e) { console.warn('세그먼트 조회 파일 로딩 실패', e); }
 }
@@ -409,11 +409,10 @@ async function ensureOriginals() {
   STATE.originals = new Map();
   try {
     $('start-msg').textContent = '원본 디자인 정보 불러오는 중…';
-    const rows = await fetchCsvFromPath('data/originals.csv.gz');
+    const rows = await fetchLookup('data/originals.csv.gz');
     rows.forEach(r => {
       const id = String(r.design_idx || '').trim();
-      const url = cleanVal(r.orig_url);
-      if (id) STATE.originals.set(id, { matched: +r.matched_cnt || 0, url });
+      if (id) STATE.originals.set(id, { matched: +r.matched_cnt || 0, pages: decodeOrigPages(r.pages) });
     });
   } catch (e) { console.warn('원본 조회 파일 로딩 실패', e); }
 }
@@ -421,6 +420,29 @@ async function fetchCsvFromPath(path) {
   const res = await fetch(path);
   if (!res.ok) throw new Error(path + ' 없음');
   return parseCSV(await bufToText(new Uint8Array(await res.arrayBuffer())));
+}
+// 조회 파일(세그먼트/원본)은 필드에 쉼표가 없어 split 기반으로 빠르게 파싱
+function parseSimpleCSV(text) {
+  const lines = text.split('\n');
+  const h = (lines[0] || '').replace(/\r$/, '').split(',');
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    const parts = lines[i].replace(/\r$/, '').split(',');
+    const o = {}; for (let j = 0; j < h.length; j++) o[h[j]] = parts[j] !== undefined ? parts[j] : '';
+    out.push(o);
+  }
+  return out;
+}
+async function fetchLookup(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(path + ' 없음');
+  return parseSimpleCSV(await bufToText(new Uint8Array(await res.arrayBuffer())));
+}
+const ORIG_PREFIX = 'https://file.miricanvas.com/design_thumb/';
+function decodeOrigPages(str) {
+  if (!str) return [];
+  return str.split('|').map(p => !p ? '' : (p[0] === '@' ? p.slice(1) : ORIG_PREFIX + p));
 }
 async function fileToText(file) {
   return bufToText(new Uint8Array(await file.arrayBuffer()));
@@ -682,17 +704,19 @@ function renderEnlarged() {
     strip.appendChild(t);
   });
   $('slide-big-img').src = pages[STATE.page];
-  // 원본 디자인 비교 pane
-  const origUrl = STATE.curOrig && STATE.curOrig.url;
+  // 원본 디자인 비교 pane (페이지별 원본)
+  const origPages = (STATE.curOrig && STATE.curOrig.pages) || [];
+  const hasOrig = origPages.some(Boolean);
   const origPane = $('cmp-orig-pane'), origImg = $('orig-big-img'), origBox = origImg.parentElement;
-  if (origUrl) {
+  if (hasOrig) {
     origPane.style.display = '';
-    origImg.style.display = ''; origBox.classList.remove('empty');
-    origImg.src = origUrl;
+    const ou = origPages[STATE.page];   // 현재 슬라이드에 대응하는 원본 페이지
+    if (ou) { origImg.style.display = ''; origBox.classList.remove('empty'); origImg.src = ou; }
+    else { origImg.style.display = 'none'; origBox.classList.add('empty'); }   // 이 페이지엔 원본 없음
+  } else if (STATE.originals) {
+    origPane.style.display = ''; origImg.style.display = 'none'; origBox.classList.add('empty');
   } else {
-    // 원본이 있는 데이터셋이면 pane은 두되 "매칭 없음" 표시, 아예 원본 정보가 없으면 pane 숨김
-    if (STATE.originals) { origPane.style.display = ''; origImg.style.display = 'none'; origBox.classList.add('empty'); }
-    else origPane.style.display = 'none';
+    origPane.style.display = 'none';
   }
   $('slide-prev').style.display = $('slide-next').style.display = pages.length > 1 ? '' : 'none';
   $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · ‹ › 또는 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
@@ -739,7 +763,7 @@ function render() {
   $('i-dlday').textContent = u.dl_day_cnt.toLocaleString();
   $('i-span').textContent = u.usage_span_days === null ? '–' : u.usage_span_days.toLocaleString();
   $('i-pagecnt').textContent = row.page_cnt;
-  $('i-matched').textContent = STATE.curOrig && STATE.curOrig.url ? `${STATE.curOrig.matched}페이지` : '원본 없음';
+  $('i-matched').textContent = STATE.curOrig && STATE.curOrig.pages && STATE.curOrig.pages.some(Boolean) ? `${STATE.curOrig.matched}페이지` : '원본 없음';
   $('i-didx').textContent = row.design_idx;
 
   // 메모 로드: 작성 중인 초안 우선, 없으면 저장된 내 메모 (디자인/유저 각각)
