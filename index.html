@@ -14,7 +14,7 @@
   html, body { margin: 0; height: 100%; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 
-  #app { display: none; height: 100vh; grid-template-columns: 340px 1fr; grid-template-rows: minmax(0,1fr) 300px; grid-template-areas: "aside main" "bottom bottom"; }
+  #app { display: none; height: 100vh; grid-template-columns: 340px 1fr; grid-template-rows: minmax(0,1fr) 300px; grid-template-areas: "aside main" "aside bottom"; }
   #app > aside { grid-area: aside; }
   #app > main { grid-area: main; }
   #app > .right { grid-area: bottom; }
@@ -293,16 +293,6 @@
         </div>
       </div>
       <div class="empty" id="stage-empty">디자인을 선택하면 모든 슬라이드가 여기에 표시됩니다</div>
-    </div>
-    <div class="page-label" id="page-label"></div>
-
-    <div class="design-nav">
-      <button class="btn" id="prev-design">‹ 이전</button>
-      <div class="design-nums" id="design-nums"></div>
-      <button class="btn primary" id="next-design">다음 ›</button>
-    </div>
-    <div class="hint" style="text-align:center;margin-top:6px">
-      <kbd>←</kbd>/<kbd>→</kbd> 같은 유저 내 디자인 이동 · <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> 메모 저장
     </div>
   </main>
 
@@ -643,20 +633,6 @@ function openDesign(key, idx) {
   render();
   refreshFeed();
 }
-function renderDesignNums() {
-  const box = $('design-nums');
-  box.innerHTML = '';
-  const cnt = memoCountByDesign();
-  STATE.workingList.forEach((rowIdx, i) => {
-    const evaluated = (cnt[STATE.rows[rowIdx].design_idx] || 0) > 0;
-    const btn = document.createElement('button');
-    btn.className = 'num-btn' + (i === STATE.cursor ? ' active' : '') + (evaluated ? ' evaluated' : '');
-    btn.textContent = i + 1;
-    btn.title = STATE.rows[rowIdx].design_title || '';
-    btn.onclick = () => { STATE.cursor = i; STATE.page = 0; markActiveDesign(); render(); refreshFeed(); };
-    box.appendChild(btn);
-  });
-}
 function goDesign(delta) {
   if (STATE.cursor < 0) return;
   STATE.cursor = Math.min(Math.max(0, STATE.cursor + delta), STATE.workingList.length - 1);
@@ -683,8 +659,6 @@ function showGrid() {
   STATE.viewMode = 'grid';
   $('slide-grid').style.display = '';
   $('slide-enlarged').style.display = 'none';
-  const pages = STATE.currentPages || [];
-  $('page-label').textContent = pages.length ? `총 ${pages.length}개 슬라이드 · 클릭하면 크게 보기` : '';
 }
 function showEnlarged(i) {
   STATE.viewMode = 'enlarged';
@@ -722,7 +696,6 @@ function renderEnlarged() {
     origPane.style.display = 'none';
   }
   $('slide-prev').style.display = $('slide-next').style.display = pages.length > 1 ? '' : 'none';
-  $('page-label').textContent = `${STATE.page + 1} / ${pages.length} · ‹ › 또는 상단 썸네일로 이동, ▦ 전체로 돌아가기`;
   const act = strip.querySelector('.strip-thumb.active');
   if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
@@ -752,11 +725,6 @@ function render() {
   $('d-title').textContent = row.design_title || '(제목 없음)';
 
   renderSlides(pages);
-  $('page-label').textContent = pages.length ? `총 ${pages.length}개 슬라이드 · 클릭하면 크게 보기` : '';
-
-  renderDesignNums();
-  $('prev-design').disabled = STATE.cursor === 0;
-  $('next-design').disabled = STATE.cursor === STATE.workingList.length - 1;
 
   $('i-account').textContent = row.account_id;
   $('i-group').textContent = GROUP_LABEL[u.group];
@@ -1004,8 +972,6 @@ function init() {
     $('user-list').scrollTop = 0;
     buildUserList();
   });
-  $('prev-design').onclick = () => goDesign(-1);
-  $('next-design').onclick = () => goDesign(1);
   $('right-toggle').onclick = () => {
     const collapsed = $('app').classList.toggle('right-collapsed');
     $('right-toggle').textContent = collapsed ? '▴ 펼치기' : '▾ 접기';
